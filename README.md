@@ -35,7 +35,13 @@ python tools/catalogue.py build --upstream .upstream --version 1.0.0 --output ar
 
 CI runs the tests and two independent deterministic builds on Windows, macOS and Linux. The Publish sensor definitions workflow takes a stable version, validates/builds it, and creates an immutable data tag and release. The tag includes the generator source and data. Release attachments are just the manifest and notices; the hundreds of OS shards live under the immutable tag. Coverage/build reports remain Actions artifacts.
 
-After publication, submit the released `manifest.json` as `feeds/v1/stable.json` in a normal PR. Merge that PR only after its checks pass. Apps receive the data update on their next enabled sync without an app release. Custom repositories can use the same workflow and contract. Publishing does not require workflows to create or approve PRs.
+The **Build LibreNMS releases** workflow checks the official latest stable LibreNMS release daily at 08:23 UTC. It can also be dispatched manually, with an optional stable release number. Since this repository cannot subscribe directly to another repository's release events, scheduled detection can take up to a day, plus any GitHub scheduling delay.
+
+For example, LibreNMS `26.10.2` produces catalogue `v26.10.2`. The workflow resolves the official tag to its exact commit, records it in the release's source lock, and tests and builds the data twice on Windows, macOS and Linux. Only after all three platforms pass does it publish the immutable catalogue and automatically update `feeds/v1/stable.json`. Enabled apps receive it on their next sync (normally within 24 hours of activation), or immediately through **Update sensor definitions**. No app release or manual promotion PR is needed for this upstream-release path.
+
+Already active versions are skipped. Releases are never overwritten and the feed cannot move backwards. If publication succeeds but feed activation fails, the next run retries activation using the published tag after verifying its pinned upstream release. A tag left without a release fails for maintainer investigation. The automation only needs ordinary repository contents write permission for publication and feed activation; it does not create or approve PRs or change repository permissions. Workflow failures remain visible in Actions, and the previous feed stays active until promotion succeeds.
+
+The manual **Publish sensor definitions** workflow remains available for catalogue-specific versions. After that manual workflow, submit the released `manifest.json` as `feeds/v1/stable.json` in a normal PR and merge after its checks pass. Custom repositories can use the same workflows and contract.
 
 ## Repository layout
 
