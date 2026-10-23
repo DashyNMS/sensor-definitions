@@ -8,8 +8,6 @@ on:
         type: string
 permissions:
   contents: write
-  issues: write
-  pull-requests: write
 concurrency:
   group: publish-catalogue
   cancel-in-progress: false
@@ -43,7 +41,7 @@ jobs:
         env:
           CATALOGUE_VERSION: ${{ inputs.version }}
         run: python tools/catalogue.py build --upstream .upstream --version "$CATALOGUE_VERSION" --output artifacts/release
-      - name: Publish immutable data and propose stable feed
+      - name: Publish immutable data and prepare stable feed manifest
         env:
           GH_TOKEN: ${{ github.token }}
           CATALOGUE_VERSION: ${{ inputs.version }}

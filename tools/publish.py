@@ -1,4 +1,4 @@
-"""Publish immutable tagged data, then propose its stable channel in a PR."""
+"""Publish immutable tagged data and leave its manifest ready for a reviewed feed PR."""
 import argparse
 import json
 import os
@@ -48,22 +48,7 @@ def main():
         run("gh", "release", "create", tag, "--repo", repository, "--title", f"Sensor definitions {args.version}",
             "--notes-file", str(notes), str(args.data / "manifest.json"), str(args.data / "notices.txt"))
         run("git", "worktree", "remove", str(work))
-        issue = run("gh", "issue", "create", "--repo", repository, "--title", f"build(definitions): offer catalogue {args.version} to apps",
-                    "--body", f"Advance the schema-1 stable feed to validated catalogue {args.version}. The immutable release is already published.")
-        branch = "publish/catalogue-" + args.version
-        run("git", "switch", "-c", branch)
-        feed = Path("feeds/v1/stable.json")
-        feed.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(args.data / "manifest.json", feed)
-        run("git", "add", str(feed))
-        run("git", "commit", "-m", f"build(definitions): offer catalogue {args.version} to apps")
-        run("git", "push", "-u", "origin", branch)
-        body = Path(folder) / "body.md"
-        body.write_text(f"Closes #{issue.rsplit('/', 1)[-1]}\n\nOffer catalogue {args.version} through the schema-1 stable channel. "
-                        f"The [immutable release](https://github.com/{repository}/releases/tag/{tag}) is available; "
-                        "its manifest and OS shards were validated before publication. Merging this PR allows enabled apps to discover the data update.\n", encoding="utf-8")
-        print(run("gh", "pr", "create", "--repo", repository, "--base", "main", "--head", branch,
-                  "--title", f"build(definitions): offer catalogue {args.version} to apps", "--body-file", str(body)))
+        print(f"Published {tag}. Submit artifacts/release/manifest.json as feeds/v1/stable.json in a reviewed PR.")
 
 
 if __name__ == "__main__":

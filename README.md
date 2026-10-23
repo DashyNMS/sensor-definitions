@@ -33,9 +33,9 @@ python -m unittest discover -s tests -v
 python tools/catalogue.py build --upstream .upstream --version 1.0.0 --output artifacts/release
 ```
 
-CI runs the tests and two independent deterministic builds on Windows, macOS and Linux. The Publish sensor definitions workflow takes a stable version, validates/builds it, creates an immutable data tag and release, then proposes the stable feed change in a PR. The tag includes the generator source and data. Release attachments are just the manifest and notices; the hundreds of OS shards live under the immutable tag. Coverage/build reports remain Actions artifacts.
+CI runs the tests and two independent deterministic builds on Windows, macOS and Linux. The Publish sensor definitions workflow takes a stable version, validates/builds it, and creates an immutable data tag and release. The tag includes the generator source and data. Release attachments are just the manifest and notices; the hundreds of OS shards live under the immutable tag. Coverage/build reports remain Actions artifacts.
 
-Merge the feed PR only after its checks pass. Apps receive that data update on their next enabled sync without an app release. Custom repositories can use the same workflow and contract. GitHub Actions needs permission to create PRs in the publishing repository.
+After publication, submit the released `manifest.json` as `feeds/v1/stable.json` in a normal PR. Merge that PR only after its checks pass. Apps receive the data update on their next enabled sync without an app release. Custom repositories can use the same workflow and contract. Publishing does not require workflows to create or approve PRs.
 
 ## Repository layout
 
