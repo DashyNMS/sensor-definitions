@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "catalogueVersion": "1.0.0-draft.1",
+  "sources": [
+    {
+      "id": "example-fixture",
+      "kind": "synthetic",
+      "location": "examples/catalogue-v1.json",
+      "revision": "draft-1",
+      "licence": "NOASSERTION",
+      "notice": "Synthetic documentation fixture. Not a vendor mapping or production catalogue."
+    }
+  ],
+  "definitions": [
+    {
+      "id": "example-os/fan-state",
+      "match": {
+        "os": "example-os",
+        "sensorClass": "state",
+        "sensorType": "exampleFanState",
+        "oidPrefix": "1.3.6.1.4.1.32473.1.1"
+      },
+      "states": [
+        { "value": "1", "label": "Ready", "genericState": "ok" },
+        { "value": "2", "label": "Degraded", "genericState": "warning" },
+        { "value": "3", "label": "Failed", "genericState": "critical" },
+        { "value": "4", "label": "Unknown", "genericState": "unknown" }
+      ],
+      "sourceRefs": [
+        { "sourceId": "example-fixture", "path": "examples/catalogue-v1.json", "symbol": "exampleFanState", "suppliesSeverity": true }
+      ]
+    },
+    {
+      "id": "example-os/role",
+      "match": {
+        "os": "example-os",
+        "sensorClass": "state",
+        "sensorType": "exampleRole",
+        "oidPrefix": "1.3.6.1.4.1.32473.1.2"
+      },
+      "states": [
+        { "value": "1", "label": "Primary", "genericState": null },
+        { "value": "2", "label": "Secondary", "genericState": null }
+      ],
+      "sourceRefs": [
+        { "sourceId": "example-fixture", "path": "examples/catalogue-v1.json", "symbol": "exampleRole", "suppliesSeverity": false }
+      ]
+    }
+  ]
+}
