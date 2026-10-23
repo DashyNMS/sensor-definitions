@@ -1,71 +1,48 @@
-# DashyNMS sensor definitions
+<p align="center"><img src="https://dashynms.pckp.net/assets/img/favicon.svg" alt="" width="96" height="96"></p>
+<h1 align="center">DashyNMS sensor definitions</h1>
+<p align="center"><strong>Names and status colours for numeric sensor states.</strong><br>A shared catalogue that updates independently of the apps.</p>
+<p align="center"><a href="https://dashynms.pckp.net/">Website</a> · <a href="https://github.com/DashyNMS/sensor-definitions/releases">Releases</a> · <a href="https://github.com/DashyNMS/sensor-definitions/issues">Issues</a></p>
 
-An independently updated catalogue of sensor state labels and severity mappings for DashyNMS Desktop, Mobile and MCP. The data is split by LibreNMS device OS so applications load only the systems they need.
+---
 
-The first importer supports static LibreNMS YAML state definitions and literal Cisco PHP state tables. It does not execute discovery code or redistribute the complete MIB collection. Dynamic or conflicting mappings are omitted and listed in the coverage report. MIB enum import and other PHP discovery families are future coverage work.
+DashyNMS sensor definitions translates numeric state readings into labels and status colours using LibreNMS mappings. [Core](https://github.com/DashyNMS/core) supplies the shared reader for Desktop and its bundled MCP server; Mobile integration follows separately.
 
-## Agreed product requirements
+## How it works
 
-- Users can turn sensor definitions on or off.
-- Definitions are installation data, separate from server/account profiles. Keep downloaded definitions after sign-out and ordinary app upgrades.
-- Turning the setting off stops resolution and updates, cancels outstanding downloads, and deletes all downloaded sensor definitions, including cached custom sources.
-- Users can select the official repository or a custom compatible sensor definitions repository.
-- Routine catalogue additions and corrections do not require an app release. Changes to the reader or supported schema can still require one.
+- **Download what you need:** a small index lists device operating systems. Each compressed OS file contains multiple mappings and downloads only when needed.
+- **Keep raw readings:** labels supplement numeric values. Only authoritative generic states supply severity colours; unsupported values remain unresolved.
+- **Choose the source:** use the official catalogue or a compatible custom repository. Selecting a source trusts its publisher; checksums detect corruption, not a compromised publisher.
+- **Control the feature:** definitions are optional. Files survive sign-out; explicitly turning the setting off removes them.
 
-## Data format
+The importer supports literal YAML state tables and selected PHP discovery formats. It never executes discovery code or redistributes the complete MIB collection. Unsupported, dynamic and conflicting mappings are reported rather than guessed. Not every sensor is supported yet; each data tag contains a coverage report.
 
-Ship a small generated JSON catalogue, not the complete LibreNMS MIB collection or an SNMP runtime. Keep the updater and resolver in Core. Desktop supplies the settings UI and installation storage location; its bundled MCP process reads that same catalogue. Mobile integration follows using its platform's persistent installation data storage.
+## Updates and versions
 
-Prefer authoritative state translations supplied by the connected server when an API supports them. Otherwise use matching catalogue definitions. Unknown values and ambiguous matches remain unresolved; a label from a MIB alone does not establish alert severity.
+The **Build LibreNMS releases** workflow checks the latest official stable release daily at 08:23 UTC. LibreNMS `26.10.2`, for example, produces catalogue `v26.10.2` from its exact commit. After tests and deterministic builds pass on Windows, macOS and Linux, publication and stable-feed activation happen automatically.
 
-Read [the design](docs/DESIGN.md), [delivery plan](docs/ROADMAP.md), and [contribution guide](CONTRIBUTING.md). The [index schema](schemas/index-v1.schema.json) describes the small stable feed; the [shard schema](schemas/catalogue-v1.schema.json) describes one OS's data. The [example](examples/catalogue-v1.json) is synthetic and is never published as vendor support.
+Detection can take a day plus GitHub scheduling delays. Enabled apps receive activated data on their next sync, normally within 24 hours, or through **Update sensor definitions**. No app rebuild is needed for routine catalogue changes. Reader/schema changes may need an app update.
 
-`feeds/v1/stable.json` names the active catalogue version and each OS shard's hash and sizes. Data is fetched at `https://raw.githubusercontent.com/OWNER/REPO/vVERSION/data/os/OS.json.gz`. Shards contain no release number, so changing a catalogue release does not change the hash of an unchanged shard. Full source notices are in `data/notices.txt`, separately hash-checked and retained by the app.
+Generated OS files live in release tags under `data/os/`, named by OS, such as `procurve.json.gz`. The `main` branch holds the generator and [active index](feeds/v1/stable.json). Release attachments contain the manifest and notices; OS files and coverage reports remain in the tag.
 
-Core keeps a bounded LRU of at most 16 OS shards / 4 MiB of source JSON. This bounds catalogue content retained in the lookup cache, not the process's total heap size. Parsed strings and lookup objects add overhead. Disk caches survive eviction from memory.
+## Build and development
 
-## Build and publish
-
-Install Python 3.12 and `python -m pip install -r requirements.txt`. Check out the pinned revision from `sources/librenms.json` into `.upstream`, including the discovery/detection folders, state PHP folder and `LICENSE.txt`.
+Use Python 3.12 and Git; publication also needs GitHub CLI.
 
 ```text
+python -m pip install -r requirements.txt
 python -m unittest discover -s tests -v
-python tools/catalogue.py build --upstream .upstream --version 1.0.0 --output artifacts/release
 ```
 
-CI runs the tests and two independent deterministic builds on Windows, macOS and Linux. The Publish sensor definitions workflow takes a stable version, validates/builds it, and creates an immutable data tag and release. The tag includes the generator source and data. Release attachments are just the manifest and notices; the hundreds of OS shards live under the immutable tag. Coverage/build reports remain Actions artifacts.
+The [developer guide](docs/DEVELOPMENT.md) covers pinned inputs, builds, security checks and publication. See [the design](docs/DESIGN.md), [schemas](schemas/) and [contribution guide](CONTRIBUTING.md) for the protocol and change standards.
 
-The **Build LibreNMS releases** workflow checks the official latest stable LibreNMS release daily at 08:23 UTC. It can also be dispatched manually, with an optional stable release number. Since this repository cannot subscribe directly to another repository's release events, scheduled detection can take up to a day, plus any GitHub scheduling delay.
+Use one issue per PR into `main`, then squash-merge. Titles follow `type(scope): lower-case user-visible result`. Never commit customer network details or credentials.
 
-For example, LibreNMS `26.10.2` produces catalogue `v26.10.2`. The workflow resolves the official tag to its exact commit, records it in the release's source lock, and tests and builds the data twice on Windows, macOS and Linux. Only after all three platforms pass does it publish the immutable catalogue and automatically update `feeds/v1/stable.json`. Enabled apps receive it on their next sync (normally within 24 hours of activation), or immediately through **Update sensor definitions**. No app release or manual promotion PR is needed for this upstream-release path.
+## Help and feedback
 
-Already active versions are skipped. Releases are never overwritten and the feed cannot move backwards. If publication succeeds but feed activation fails, the next run retries activation using the published tag after verifying its pinned upstream release. A tag left without a release fails for maintainer investigation. The automation only needs ordinary repository contents write permission for publication and feed activation; it does not create or approve PRs or change repository permissions. Workflow failures remain visible in Actions, and the previous feed stays active until promotion succeeds.
+- Bugs or missing mappings: [open an issue](https://github.com/DashyNMS/sensor-definitions/issues) with synthetic examples.
+- Security problems: report privately using [SECURITY.md](SECURITY.md).
 
-The manual **Publish sensor definitions** workflow remains available for catalogue-specific versions. After that manual workflow, submit the released `manifest.json` as `feeds/v1/stable.json` in a normal PR and merge after its checks pass. Custom repositories can use the same workflows and contract.
+---
 
-## Repository layout
-
-```text
-docs/                 Architecture, update/storage policy and delivery plan
-schemas/              Versioned JSON schemas
-examples/             Synthetic examples, never promoted as real vendor support
-sources/              Planned pinned upstream inputs and provenance records
-definitions/          Planned normalised mappings and reviewed corrections
-tools/                Planned importer, validator and deterministic packager
-tests/                Planned matching, import and update fixtures
-feeds/v1/stable.json   Planned stable release pointer for schema 1 readers
-```
-
-See [NOTICE.md](NOTICE.md) for the distinction between generator licensing and upstream-derived catalogue data.
-
-## Source material
-
-- [LibreNMS state sensor model](https://github.com/librenms/librenms/blob/master/app/Models/Sensor.php)
-- [LibreNMS state support documentation](https://docs.librenms.org/Developing/Sensor-State-Support/)
-- [Discovery definitions](https://github.com/librenms/librenms/tree/master/resources/definitions/os_discovery)
-- [PHP state discovery](https://github.com/librenms/librenms/tree/master/includes/discovery/sensors/state)
-- [MIBs](https://github.com/librenms/librenms/tree/master/mibs)
-
-Research baseline: LibreNMS revision `fe6d56d3e6c55a0159ead8a5220e5fe51bd447a2`, inspected 23 October 2026. Its MIB tree totals 419,763,080 file-content bytes across 4,865 files. A production importer must pin and record its own input revision rather than follow a moving branch during a build.
-
-The generator and original documentation are MIT-licensed. Generated LibreNMS mappings retain their source GPL-3.0-or-later notices, including the full upstream licence in each data release. No third-party mappings have been copied into the synthetic example.
+<sub>DashyNMS is not affiliated with LibreNMS or the vendors represented in the catalogue.<br>
+Original generator code, schemas, tests and documentation use the MIT licence: see [LICENSE](LICENSE). LibreNMS-derived data retains its GPL-3.0-or-later terms and notices: see [NOTICE.md](NOTICE.md).</sub>

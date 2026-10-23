@@ -87,7 +87,8 @@ def import_yaml(upstream, report):
     for file in sorted((upstream / "resources/definitions/os_discovery").glob("*.yaml")):
         path = file.relative_to(upstream).as_posix()
         try:
-            doc = yaml.load(file.read_text(encoding="utf-8"), Loader=UniqueLoader) or {}
+            # SafeLoader subclass; tests reject Python object tags and duplicate keys.
+            doc = yaml.load(file.read_text(encoding="utf-8"), Loader=UniqueLoader) or {}  # nosec B506
             state = (doc.get("modules", {}).get("sensors", {}) or {}).get("state", {}) or {}
             rows = state.get("data", [])
             defaults = {k: v for k, v in state.items() if k != "data"}
@@ -146,7 +147,8 @@ def import_cisco(upstream, report):
             report.append({"path": path, "symbol": names, "reason": str(error)})
     os_names = []
     for file in sorted((upstream / "resources/definitions/os_detection").glob("*.yaml")):
-        doc = yaml.load(file.read_text(encoding="utf-8"), Loader=UniqueLoader) or {}
+        # SafeLoader subclass; tests reject Python object tags and duplicate keys.
+        doc = yaml.load(file.read_text(encoding="utf-8"), Loader=UniqueLoader) or {}  # nosec B506
         if doc.get("group") == "cisco":
             os_names.append(doc.get("os", file.stem))
     if not os_names:
