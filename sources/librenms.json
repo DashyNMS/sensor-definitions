@@ -1,0 +1,6 @@
+{
+  "repository": "https://github.com/librenms/librenms",
+  "revision": "fe6d56d3e6c55a0159ead8a5220e5fe51bd447a2",
+  "licence": "GPL-3.0-or-later",
+  "paths": ["resources/definitions/os_discovery", "resources/definitions/os_detection", "includes/discovery/sensors/state/cisco.inc.php"]
+}

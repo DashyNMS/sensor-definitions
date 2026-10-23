@@ -4,10 +4,9 @@
   "title": "DashyNMS sensor definitions catalogue — draft schema 1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "catalogueVersion", "sources", "definitions"],
+  "required": ["schemaVersion", "sources", "definitions"],
   "properties": {
     "schemaVersion": { "const": 1 },
-    "catalogueVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$" },
     "sources": {
       "type": "array",
       "minItems": 1,
