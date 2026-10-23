@@ -47,9 +47,9 @@ def release_plan(repository, requested="", fetch=api):
     target = "repos/" + repository + "/"
     feed = fetch(target + "contents/feeds/v1/stable.json?ref=main")
     current = json.loads(base64.b64decode(feed["content"]))["catalogueVersion"]
-    if not VERSION.fullmatch(current):
+    if not re.fullmatch(VERSION.pattern + r"(?:\+catalogue\.[1-9][0-9]*)?", current):
         raise ValueError("Invalid stable feed version")
-    if tuple(map(int, version.split("."))) <= tuple(map(int, current.split("."))):
+    if tuple(map(int, version.split("."))) <= tuple(map(int, current.split("+")[0].split("."))):
         return None
     try:
         fetch(target + "releases/tags/v" + version)

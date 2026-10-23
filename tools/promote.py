@@ -13,9 +13,9 @@ def run(*args, cwd=None):
 
 def promotion_needed(current, incoming):
     versions = [item.get("catalogueVersion", "") for item in (current, incoming)]
-    if any(not re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", version) for version in versions):
+    if any(not re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:\+catalogue\.[1-9][0-9]*)?", version) for version in versions):
         raise ValueError("Invalid feed version")
-    old, new = (tuple(map(int, version.split("."))) for version in versions)
+    old, new = (tuple(map(int, version.split("+")[0].split("."))) + (int(version.split("+catalogue.")[1]) if "+" in version else 0,) for version in versions)
     if new < old:
         raise ValueError("Refusing to downgrade the stable feed")
     if new == old and current != incoming:

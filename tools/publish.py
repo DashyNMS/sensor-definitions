@@ -18,7 +18,7 @@ def main():
     parser.add_argument("--version", required=True)
     parser.add_argument("--data", type=Path, required=True)
     args = parser.parse_args()
-    if not re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", args.version):
+    if not re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:\+catalogue\.[1-9][0-9]*)?", args.version):
         raise ValueError("Use a stable numeric version")
     manifest = json.loads((args.data / "manifest.json").read_text())
     if manifest["catalogueVersion"] != args.version:

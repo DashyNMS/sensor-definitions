@@ -54,6 +54,10 @@ class ReleaseTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "incomplete publication"):
             upstream.release_plan("example/catalogue", fetch=self.fetch)
 
+    def test_official_release_does_not_replace_its_catalogue_correction(self):
+        self.responses["repos/example/catalogue/contents/feeds/v1/stable.json?ref=main"]["content"] = base64.b64encode(b'{"catalogueVersion":"26.10.2+catalogue.1"}').decode()
+        self.assertIsNone(upstream.release_plan("example/catalogue", fetch=self.fetch))
+
     def test_prereleases_and_untrusted_versions_are_rejected(self):
         release = self.responses["repos/librenms/librenms/releases/latest"]
         for bad in ({"prerelease": True}, {"draft": True}, {"tag_name": "26.10.2-rc1"}, {"tag_name": "../../other"}):
@@ -83,6 +87,10 @@ class ReleaseTests(unittest.TestCase):
             promote.promotion_needed({"catalogueVersion": "26.10.2"}, {"catalogueVersion": "26.9.0"})
         with self.assertRaisesRegex(ValueError, "conflicting"):
             promote.promotion_needed({"catalogueVersion": "26.10.2"}, {"catalogueVersion": "26.10.2", "shards": []})
+        self.assertTrue(promote.promotion_needed({"catalogueVersion": "26.10.2"}, {"catalogueVersion": "26.10.2+catalogue.1"}))
+        self.assertTrue(promote.promotion_needed({"catalogueVersion": "26.10.2+catalogue.1"}, {"catalogueVersion": "26.10.3"}))
+        with self.assertRaisesRegex(ValueError, "downgrade"):
+            promote.promotion_needed({"catalogueVersion": "26.10.2+catalogue.1"}, {"catalogueVersion": "26.10.2"})
 
 
 if __name__ == "__main__":

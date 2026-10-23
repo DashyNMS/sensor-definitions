@@ -34,6 +34,8 @@ The **Build LibreNMS releases** workflow detects the latest official stable rele
 
 The manual **Publish sensor definitions** workflow publishes separate catalogue versions from the current pinned input. Promote its released manifest to `feeds/v1/stable.json` through a reviewed PR after checks pass.
 
+For a catalogue-only correction to LibreNMS 26.10.2, use `26.10.2+catalogue.1` and increase the correction number for later fixes. This keeps the upstream release identity and every published tag immutable, without reserving a future LibreNMS patch version. Readers must support correction versions before promoting one. Automated detection will not replace a correction with its uncorrected base release; a newer LibreNMS release still supersedes it.
+
 Tags contain `data/manifest.json`, `data/os/<OS>.json.gz`, `data/coverage.json` and `data/notices.txt`. Only the manifest and notices are release attachments. Clients construct tagged raw GitHub URLs; unchanged OS content retains its hash across versions.
 
 ## Layout and standards
