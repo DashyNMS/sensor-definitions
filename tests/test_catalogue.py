@@ -89,6 +89,33 @@ $states = match ($state_name) {
     def test_deterministic_encoding(self):
         self.assertEqual(catalogue.encode(self.example), catalogue.encode(copy.deepcopy(self.example)))
 
+    def test_plain_state_labels_are_not_yaml_booleans(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = root / "resources/definitions/os_discovery"
+            directory.mkdir(parents=True)
+            (directory / "example-os.yaml").write_text("""modules:
+  sensors:
+    state:
+      data:
+        - state_name: exampleFanState
+          num_oid: '.1.3.6.1.4.1.32473.1.{{ $index }}'
+          states:
+            - {value: 1, descr: off, generic: 3}
+            - {value: 2, descr: on, generic: 0}
+            - {value: 3, descr: yes, generic: 0}
+            - {value: 4, descr: no, generic: 1}
+""")
+            report = []
+            result = catalogue.import_yaml(root, report)
+            self.assertEqual([], report)
+            self.assertEqual(["off", "on", "yes", "no"], [row["label"] for row in result[0]["states"]])
+            flags = catalogue.yaml.load("enabled: true\ndisabled: false\n", Loader=catalogue.UniqueLoader)
+            self.assertIs(flags["enabled"], True)
+            self.assertIs(flags["disabled"], False)
+            # Do not change the global loader used by other code.
+            self.assertIs(catalogue.yaml.safe_load("off"), False)
+
 
 if __name__ == "__main__":
     unittest.main()
