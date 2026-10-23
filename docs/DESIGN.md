@@ -1,6 +1,6 @@
 # Sensor definitions design draft
 
-Status: proposal. The product requirements in the README reflect the user's instructions; defaults, paths and wire formats below remain implementation proposals.
+Status: implementation specification. The product requirements in the README reflect the user's instructions. The schema-1 implementation uses the sharded protocol below; future coverage and platform limitations are called out explicitly.
 
 ## Ownership and settings
 
@@ -88,7 +88,7 @@ The draft example uses the documentation-only enterprise number 32473: [RFC 5612
 
 ## Versioning and update protocol
 
-Separate `schemaVersion` from `catalogueVersion`. A schema-1 reader follows `feeds/v1/stable.json`, even after schema 2 exists. Use immutable tagged releases for catalogue assets; publish the channel pointer only after its referenced release is available and validated. A stable feed must not select a prerelease catalogue.
+Separate `schemaVersion` from `catalogueVersion`. A schema-1 reader follows `feeds/v1/stable.json`, even after schema 2 exists. Use immutable tagged releases for catalogue assets; publish the channel pointer only after its referenced release is available and validated. A stable feed must not select a prerelease catalogue. The stable feed is the small OS index, not a monolithic catalogue. The catalogue version is in the index; OS data omits it so unchanged content can be reused across releases.
 
 Proposed stable pointer fields:
 
@@ -96,18 +96,18 @@ Proposed stable pointer fields:
 {
   "schemaVersion": 1,
   "catalogueVersion": "1.0.0",
-  "assetUrl": "https://github.com/OWNER/REPOSITORY/releases/download/v1.0.0/catalogue-v1.json.gz",
-  "sha256": "<digest of the compressed asset>",
-  "downloadBytes": 12345,
-  "expandedBytes": 67890
+  "notices": { "sha256": "<digest>", "downloadBytes": 35000 },
+  "shards": [
+    { "os": "ios", "sha256": "<compressed digest>", "downloadBytes": 1234, "expandedBytes": 12345, "definitions": 12 }
+  ]
 }
 ```
 
-This is illustrative, not a published feed. A feed schema and signing contract remain to be settled. HTTPS and SHA-256 bind the download to the selected publisher's manifest; a checksum alone does not authenticate a compromised publisher. Do not describe the first implementation as signed unless signing and verification actually exist. A signing policy, key ownership and custom-source trust model need review before automatic public rollout.
+This abbreviated example uses placeholders; the index schema and generated manifests require full SHA-256 values. Readers construct shard and notice URLs from the selected repository and immutable version tag, so feeds cannot redirect downloads to arbitrary servers. The first implementation uses HTTPS and SHA-256, not signature verification. A checksum does not authenticate a compromised publisher; selecting a repository trusts that publisher. Signing/key rotation is a future extension and must not be claimed as implemented.
 
 While enabled, proposed behaviour is one asynchronous check at startup if the last check was more than 24 hours ago, plus a manual update option. Repaint existing sensor values after an atomic catalogue swap; do not restart the app or discard selections. No update check should delay startup or require LibreNMS sign-in. Network failures keep the selected source's last validated catalogue.
 
-Download to a fresh staging directory within the definitions root. Enforce HTTPS redirect/source policy, bounded sizes and decompression limits, checksum, supported schema and semantic validation before atomic promotion. Proposed initial limits: 8 MiB compressed and 32 MiB expanded, subject to measurement with a real generated catalogue. Keep current data on failure; update status explains the failure. No cache eviction solely because the user signs out or a periodic check fails.
+Fetch only shards for requested device OS identifiers. Store compressed objects by hash within their source directory and validate each before atomic promotion of the index/loaded set. Limits are 1 MiB for the index/notices, 512 KiB compressed and 2 MiB expanded per OS shard. The lookup LRU holds at most 16 systems / 4 MiB of source JSON; parsed-object overhead and visible resolved rows are additional memory. Eviction from this memory cache never deletes disk data. A mixed fleet is processed one OS group at a time so even a network with more systems than the LRU limit resolves all its sensors. Keep current data on failure; update status explains the failure. No disk cache eviction solely because the user signs out or a periodic check fails.
 
 ## Core and app integration
 

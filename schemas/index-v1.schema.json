@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DashyNMS schema-1 OS shard index",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "catalogueVersion", "shards", "notices"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "catalogueVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "notices": { "$ref": "#/$defs/asset" },
+    "shards": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["os", "sha256", "downloadBytes", "expandedBytes", "definitions"],
+        "properties": {
+          "os": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+          "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "downloadBytes": { "type": "integer", "minimum": 1, "maximum": 524288 },
+          "expandedBytes": { "type": "integer", "minimum": 1, "maximum": 2097152 },
+          "definitions": { "type": "integer", "minimum": 1 }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha256", "downloadBytes"],
+      "properties": {
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "downloadBytes": { "type": "integer", "minimum": 1, "maximum": 1048576 }
+      }
+    }
+  }
+}

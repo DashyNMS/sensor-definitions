@@ -1,0 +1,46 @@
+name: Validate catalogue
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  validate:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - run: python -m unittest discover -s tests -v
+      - name: Read pinned revision
+        id: upstream
+        shell: bash
+        run: echo "revision=$(python -c "import json; print(json.load(open('sources/librenms.json'))['revision'])")" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v7
+        with:
+          repository: librenms/librenms
+          ref: ${{ steps.upstream.outputs.revision }}
+          path: .upstream
+          sparse-checkout: |
+            resources/definitions/os_discovery
+            resources/definitions/os_detection
+            includes/discovery/sensors/state
+            LICENSE.txt
+          sparse-checkout-cone-mode: false
+      - run: python tools/catalogue.py build --upstream .upstream --version 1.0.0 --output artifacts/first
+      - run: python tools/catalogue.py build --upstream .upstream --version 1.0.0 --output artifacts/second
+      - name: Verify deterministic shards
+        run: python -c "from pathlib import Path; a=Path('artifacts/first'); b=Path('artifacts/second'); assert all(p.read_bytes()==(b/p.relative_to(a)).read_bytes() for p in a.rglob('*') if p.is_file())"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: catalogue-${{ matrix.os }}
+          path: artifacts/first
+          retention-days: 14

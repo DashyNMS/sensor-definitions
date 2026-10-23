@@ -1,0 +1,5 @@
+.upstream/
+.deps/
+artifacts/
+__pycache__/
+*.pyc
