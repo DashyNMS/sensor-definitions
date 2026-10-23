@@ -85,6 +85,14 @@ $states = match ($state_name) {
             result = catalogue.import_cisco(root, [])
             self.assertEqual(1, len(result))
             self.assertEqual("example-os", result[0]["match"]["os"])
+            file = php / "cisco.inc.php"
+            original = file.read_text()
+            file.write_text(original.replace("'exampleFanState' => [", "'otherFanState', 'exampleFanState' => ["))
+            self.assertEqual(1, len(catalogue.import_cisco(root, [])))
+            file.write_text(original.replace("'exampleFanState' => [", "'exampleFanState'" + " " * 10000 + "invalid ["))
+            report = []
+            self.assertEqual([], catalogue.import_cisco(root, report))
+            self.assertTrue(report)
 
     def test_deterministic_encoding(self):
         self.assertEqual(catalogue.encode(self.example), catalogue.encode(copy.deepcopy(self.example)))

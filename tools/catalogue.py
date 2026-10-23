@@ -129,7 +129,9 @@ def import_cisco(upstream, report):
         raise ValueError("Pinned Cisco literal tables/match shape changed; review importer")
     tables = [php_literal_row(row) for row in re.findall(r"\[([^\[\]]+)\]", tables_match[1])]
     states = {}
-    arm = re.compile(r"((?:'[^']+'\s*,?\s*)+)\s*=>\s*\[(.*?)\n\s*\],", re.S)
+    # Require commas between names; optional separators plus overlapping spaces
+    # allow excessive backtracking when malformed input has no following arrow.
+    arm = re.compile(r"('[^']+'(?:\s*,\s*'[^']+')*)\s*=>\s*\[(.*?)\n\s*\],", re.S)
     for match in arm.finditer(arms_match[1]):
         names = re.findall(r"'([^']+)'", match[1])
         bodies = re.findall(r"\[([^\[\]]+)\]", match[2])
