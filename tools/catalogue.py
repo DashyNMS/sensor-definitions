@@ -24,6 +24,15 @@ class UniqueLoader(yaml.SafeLoader):
     pass
 
 
+# Discovery labels such as off/on are strings in YAML 1.2. PyYAML's default
+# YAML 1.1 resolver otherwise turns them into booleans and drops valid mappings.
+UniqueLoader.yaml_implicit_resolvers = {
+    key: [(tag, pattern) for tag, pattern in resolvers if tag != "tag:yaml.org,2002:bool"]
+    for key, resolvers in yaml.SafeLoader.yaml_implicit_resolvers.items()
+}
+UniqueLoader.add_implicit_resolver("tag:yaml.org,2002:bool", re.compile(r"^(?:true|True|TRUE|false|False|FALSE)$"), list("tTfF"))
+
+
 def unique_mapping(loader, node, deep=False):
     result = {}
     for key_node, value_node in node.value:
