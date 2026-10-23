@@ -1,0 +1,122 @@
+name: Build LibreNMS releases
+on:
+  schedule:
+    - cron: '23 8 * * *'
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'Stable LibreNMS version; leave blank for the latest'
+        required: false
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: publish-catalogue
+  cancel-in-progress: false
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.release.outputs.publish }}
+      version: ${{ steps.release.outputs.version }}
+      revision: ${{ steps.release.outputs.revision }}
+      action: ${{ steps.release.outputs.action }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Find unpublished stable release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_RELEASE: ${{ inputs.release }}
+        run: python tools/upstream_release.py --release "$REQUESTED_RELEASE"
+  validate:
+    needs: detect
+    if: needs.detect.outputs.action == 'build'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - run: python -m unittest discover -s tests -v
+      - name: Pin the resolved release input
+        shell: bash
+        env:
+          SOURCE_REVISION: ${{ needs.detect.outputs.revision }}
+          SOURCE_VERSION: ${{ needs.detect.outputs.version }}
+        run: python -c "import json,os; from pathlib import Path; p=Path('sources/librenms.json'); d=json.loads(p.read_text()); d.update(revision=os.environ['SOURCE_REVISION'],release=os.environ['SOURCE_VERSION']); p.write_text(json.dumps(d,indent=2)+'\n',encoding='utf-8')"
+      - uses: actions/checkout@v7
+        with:
+          repository: librenms/librenms
+          ref: ${{ needs.detect.outputs.revision }}
+          path: .upstream
+          sparse-checkout: |
+            resources/definitions/os_discovery
+            resources/definitions/os_detection
+            includes/discovery/sensors/state
+            LICENSE.txt
+          sparse-checkout-cone-mode: false
+      - name: Build catalogue twice
+        shell: bash
+        env:
+          CATALOGUE_VERSION: ${{ needs.detect.outputs.version }}
+        run: |
+          python tools/catalogue.py build --upstream .upstream --version "$CATALOGUE_VERSION" --output artifacts/release
+          python tools/catalogue.py build --upstream .upstream --version "$CATALOGUE_VERSION" --output artifacts/repeat
+          python -c "from pathlib import Path; a=Path('artifacts/release'); b=Path('artifacts/repeat'); assert all(p.read_bytes()==(b/p.relative_to(a)).read_bytes() for p in a.rglob('*') if p.is_file())"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: upstream-${{ matrix.os }}
+          path: artifacts/release
+          retention-days: 30
+      - uses: actions/upload-artifact@v7
+        if: matrix.os == 'ubuntu-latest'
+        with:
+          name: upstream-source-lock
+          path: sources/librenms.json
+          retention-days: 30
+  publish:
+    needs: [detect, validate]
+    if: always() && needs.detect.result == 'success' && (needs.validate.result == 'success' || needs.detect.outputs.action == 'promote')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v8
+        if: needs.detect.outputs.action == 'build'
+        with:
+          name: upstream-ubuntu-latest
+          path: artifacts/release
+      - uses: actions/download-artifact@v8
+        if: needs.detect.outputs.action == 'build'
+        with:
+          name: upstream-source-lock
+          path: sources
+      - name: Publish immutable release
+        if: needs.detect.outputs.action == 'build'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CATALOGUE_VERSION: ${{ needs.detect.outputs.version }}
+        run: python tools/publish.py --version "$CATALOGUE_VERSION" --data artifacts/release
+      - name: Activate the catalogue for enabled apps
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CATALOGUE_VERSION: ${{ needs.detect.outputs.version }}
+          SOURCE_REVISION: ${{ needs.detect.outputs.revision }}
+        run: |
+          python tools/promote.py --version "$CATALOGUE_VERSION" --revision "$SOURCE_REVISION"
+          echo "Activated catalogue v$CATALOGUE_VERSION from the matching LibreNMS release. Enabled apps receive it on their next sync." >> "$GITHUB_STEP_SUMMARY"

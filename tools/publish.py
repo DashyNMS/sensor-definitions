@@ -23,6 +23,11 @@ def main():
     manifest = json.loads((args.data / "manifest.json").read_text())
     if manifest["catalogueVersion"] != args.version:
         raise ValueError("Manifest version mismatch")
+    lock_path = Path("sources/librenms.json")
+    lock = json.loads(lock_path.read_text())
+    coverage = json.loads((args.data / "coverage.json").read_text())
+    if coverage["upstreamRevision"] != lock["revision"]:
+        raise ValueError("Generated data does not match the pinned source revision")
     repository = os.environ["GITHUB_REPOSITORY"]
     tag = "v" + args.version
     if subprocess.run(["git", "rev-parse", "--verify", "refs/tags/" + tag], capture_output=True).returncode == 0:
@@ -35,11 +40,13 @@ def main():
         work = Path(folder) / "publication"
         run("git", "worktree", "add", "--detach", str(work), "HEAD")
         shutil.copytree(args.data, work / "data")
-        run("git", "add", "data", cwd=work)
+        # Scheduled builds resolve a release rather than main's research pin.
+        # The immutable tag must retain that exact source lock for reproduction.
+        shutil.copyfile(lock_path, work / "sources/librenms.json")
+        run("git", "add", "data", "sources/librenms.json", cwd=work)
         run("git", "commit", "-m", f"build(definitions): publish catalogue {args.version}", cwd=work)
         run("git", "tag", tag, cwd=work)
         run("git", "push", "origin", "refs/tags/" + tag, cwd=work)
-        coverage = json.loads((args.data / "coverage.json").read_text())
         notes = Path(folder) / "notes.md"
         notes.write_text(f"Sensor state catalogue {args.version}: {coverage['definitions']} definitions for {coverage['systems']} systems.\n\n"
                          f"LibreNMS source: `{coverage['upstreamRevision']}`.\n\n"

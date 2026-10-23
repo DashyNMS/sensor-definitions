@@ -13,3 +13,5 @@ Each mapping change must identify its source and include a fixture proving the n
 The future CI validator should reject duplicate or ambiguous selectors, conflicting states, missing provenance, invalid OIDs and unsupported schema versions. Dynamic discovery that cannot be interpreted faithfully belongs in the coverage report, not a guessed generated record.
 
 Treat data releases as user-visible behaviour changes. Review label and severity corrections, publish immutable catalogue versions, and document changed coverage. A data repository must never ship instructions or scripts that client applications execute.
+
+The approved upstream-release automation is the exception to manual feed PRs: an official stable LibreNMS release is pinned, validated on all three platforms, published under the matching version, and activated automatically. Changes to the importer, workflows and catalogue-specific corrections still follow the normal issue and PR review process. Do not overwrite published versions or force-push feed updates.
