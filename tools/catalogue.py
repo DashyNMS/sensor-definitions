@@ -164,6 +164,34 @@ def import_cisco(upstream, report):
     return result
 
 
+def import_axis(upstream, report):
+    path = "includes/discovery/sensors/state/axiscam.inc.php"
+    text = (upstream / path).read_text(encoding="utf-8")
+    assignments = list(re.finditer(r"\$cur_oid\s*=\s*([^;]+);", text))
+    result = []
+    for index, assignment in enumerate(assignments):
+        block = text[assignment.end():assignments[index + 1].start() if index + 1 < len(assignments) else len(text)]
+        try:
+            oid = re.fullmatch(r"'([.0-9]+)'", assignment[1].strip())
+            names = re.findall(r"\$state_name\s*=\s*([^;]+);", block)
+            name = re.fullmatch(r"'([A-Za-z0-9_.:-]+)'", names[0].strip()) if len(names) == 1 else None
+            states = re.search(r"\$states\s*=\s*\[(.*?)\n\s*\];", block, re.S)
+            if not oid or not name or not states or len(re.findall(r"\$states\s*=", block)) != 1:
+                raise ValueError("Dynamic or unsupported Axis identity/state table")
+            residue = re.sub(r"\[[^\[\]]+\]", "", states[1]).replace(",", "").strip()
+            if residue or not re.search(r"create_state_index\(\s*\$state_name\s*,\s*\$states\s*\)", block):
+                raise ValueError("Non-literal or unregistered Axis state table")
+            if not re.search(r"discover_sensor\(\s*null\s*,\s*SensorType::State\s*,\s*\$device\s*,\s*\$cur_oid\s*\.\s*\$index\s*,\s*\$index\s*,\s*\$state_name\s*,", block):
+                raise ValueError("Unsupported Axis sensor identity")
+            rows = [php_literal_row(body) for body in re.findall(r"\[([^\[\]]+)\]", states[1])]
+            result.append(definition("axiscam", name[1], oid[1], rows, path, name[1]))
+        except ValueError as error:
+            report.append({"path": path, "entry": index, "reason": str(error)})
+    if not assignments:
+        report.append({"path": path, "reason": "No supported Axis OID assignments"})
+    return result
+
+
 def validate(catalogue, production=False):
     schema = json.loads((ROOT / "schemas/catalogue-v1.schema.json").read_text())
     jsonschema.Draft202012Validator(schema).validate(catalogue)
@@ -206,7 +234,7 @@ def build(upstream, version, output):
     if subprocess.check_output(["git", "-C", str(upstream), "status", "--porcelain", "--untracked-files=no"], text=True).strip():
         raise ValueError("Upstream checkout has tracked modifications")
     report = []
-    items = import_yaml(upstream, report) + import_cisco(upstream, report)
+    items = import_yaml(upstream, report) + import_cisco(upstream, report) + import_axis(upstream, report)
     # Identical duplicate imports combine their provenance; conflicting ones are omitted.
     grouped = collections.defaultdict(list)
     for item in items:
