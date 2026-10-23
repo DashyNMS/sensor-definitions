@@ -89,6 +89,12 @@ $states = match ($state_name) {
     def test_deterministic_encoding(self):
         self.assertEqual(catalogue.encode(self.example), catalogue.encode(copy.deepcopy(self.example)))
 
+    def test_yaml_rejects_object_construction_and_duplicate_keys(self):
+        with self.assertRaises(catalogue.yaml.constructor.ConstructorError):
+            catalogue.yaml.load('!!python/object/apply:os.system ["never-run"]', Loader=catalogue.UniqueLoader)
+        with self.assertRaisesRegex(ValueError, "Duplicate YAML key"):
+            catalogue.yaml.load("value: 1\nvalue: 2\n", Loader=catalogue.UniqueLoader)
+
     def test_plain_state_labels_are_not_yaml_booleans(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
