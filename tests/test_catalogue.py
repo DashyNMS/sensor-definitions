@@ -31,6 +31,7 @@ class CatalogueTests(unittest.TestCase):
 
     def test_literal_oid_and_php_expressions(self):
         self.assertEqual("1.3.6.1.4.1.32473.1", catalogue.oid_prefix(".1.3.6.1.4.1.32473.1.{{ $index }}"))
+        self.assertEqual("1.3.6.1.4.1.32473.1.0", catalogue.oid_prefix(".1.3.6.1.4.1.32473.1.0{{ $noindex }}"))
         for value in (".1.3.{{ $index }}.4", "{{ $oid }}", "1.02.3"):
             with self.assertRaises(ValueError):
                 catalogue.oid_prefix(value)

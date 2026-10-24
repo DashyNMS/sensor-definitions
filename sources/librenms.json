@@ -9,6 +9,7 @@
     "includes/discovery",
     "LibreNMS/OS",
     "LibreNMS/Device",
-    "LibreNMS/Interfaces/Discovery"
+    "LibreNMS/Interfaces/Discovery",
+    "mibs"
   ]
 }

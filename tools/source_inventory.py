@@ -41,6 +41,11 @@ def collect(upstream, definitions, unsupported, load_yaml):
             reasons = ["PHP discovery source has no extracted state mappings"] if relevant else []
         sources.append({"path": path, "kind": "php", "status": status, "mappings": mappings[path], "reasons": reasons})
     paths = {item["path"] for item in sources}
+    for path in sorted(set(mappings) - paths):
+        file = upstream / path
+        if path.startswith("mibs/") and ".." not in file.parts and file.is_file():
+            sources.append({"path": path, "kind": "mib", "status": "imported", "mappings": mappings[path], "reasons": []})
+            paths.add(path)
     missing = sorted(set(mappings) - paths)
     if missing:
         raise ValueError("Extracted provenance is absent from the input inventory: " + ", ".join(missing))
