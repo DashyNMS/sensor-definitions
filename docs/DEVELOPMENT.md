@@ -17,6 +17,18 @@ Compare the generated files byte for byte. CI repeats this on Windows, macOS and
 
 Coverage includes an input inventory with per-source status, extracted mapping counts, omission reasons and content hashes. All discovery include/OS PHP files are accounted for, including files with no static state marker. A source with no static marker is not a claim that indirect state discovery is impossible. The legacy state PHP directory is always inventoried regardless of its contents or filename. Referenced sources missing from the inventory fail the build.
 
+## PHP compiler development
+
+The structured PHP compiler uses pinned Tree-sitter bindings and never runs PHP or upstream calls. Its inputs for the official pack come exclusively from the pinned official LibreNMS checkout. Additional vendor repositories and custom discovery files are outside the official build inputs.
+
+```text
+python tools/php_compiler.py --upstream .upstream --output artifacts/php-analysis.json
+```
+
+This is an intermediate analysis report, not a publishable catalogue. It records candidate exact mappings, unresolved parameterised/conditional rules and omissions. It discovers OS/group/RFC1628 routes from upstream metadata and shared hardware routes from the discovery entry point, with no vendor filename registration. The legacy state directory is also analysed for unrouted files. Literal arrays, aliases, static loops, match defaults, switch cases and fluent Sensor/StateTranslation calls are supported within explicit syntax, step, nesting and value-size limits. Unknown calls remain symbolic; runtime labels and ambiguous tables are rejected.
+
+Do not flatten conditional rules into unconditional v1 mappings. Reader/schema compatibility and remaining MIB/runtime identities must be resolved before this compiler replaces the published importer. Missing official definitions remain unresolved; the compiler does not invent meanings from device names or numeric values.
+
 ## Security checks
 
 Install scanner tools separately from runtime requirements:
