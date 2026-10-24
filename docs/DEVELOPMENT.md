@@ -4,7 +4,7 @@ Use Python 3.12 and Git; publication also needs GitHub CLI.
 
 ## Build and test
 
-Install `requirements.txt`. Check out the exact commit in `sources/librenms.json` into `.upstream`, including the discovery/detection folders, state PHP folder and `LICENSE.txt`. Never execute upstream discovery code.
+Install `requirements.txt`. Check out the exact commit in `sources/librenms.json` into `.upstream`, including all paths listed there and `LICENSE.txt`: OS discovery/detection definitions, the discovery include tree, OS classes and supporting device/interfaces directories. The build rejects incomplete checkouts. Never execute upstream discovery code.
 
 ```text
 python -m pip install -r requirements.txt
@@ -14,6 +14,8 @@ python tools/catalogue.py build --upstream .upstream --version 1.0.0 --output ar
 ```
 
 Compare the generated files byte for byte. CI repeats this on Windows, macOS and Linux. Review `coverage.json` for unsupported/conflicting mappings. Add regression fixtures for mapping changes and preserve exact source paths and authoritative severity provenance.
+
+Coverage includes an input inventory with per-source status, extracted mapping counts, omission reasons and content hashes. All discovery include/OS PHP files are accounted for, including files with no static state marker. A source with no static marker is not a claim that indirect state discovery is impossible. The legacy state PHP directory is always inventoried regardless of its contents or filename. Referenced sources missing from the inventory fail the build.
 
 ## Security checks
 

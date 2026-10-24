@@ -3,5 +3,12 @@
   "revision": "17387db6dcb86a5482c4a309b5378ded1c6df3b7",
   "release": "26.10.2",
   "licence": "GPL-3.0-or-later",
-  "paths": ["resources/definitions/os_discovery", "resources/definitions/os_detection", "includes/discovery/sensors/state/cisco.inc.php", "includes/discovery/sensors/state/axiscam.inc.php"]
+  "paths": [
+    "resources/definitions/os_discovery",
+    "resources/definitions/os_detection",
+    "includes/discovery",
+    "LibreNMS/OS",
+    "LibreNMS/Device",
+    "LibreNMS/Interfaces/Discovery"
+  ]
 }

@@ -12,9 +12,11 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(ROOT / ".deps"))
 import yaml
 import jsonschema
+import source_inventory
 
 GENERIC = {0: "ok", 1: "warning", 2: "critical", 3: "unknown"}
 OID = re.compile(r"[0-2](?:\.(?:0|[1-9][0-9]*))+")
@@ -230,6 +232,9 @@ def compress(raw):
 
 def build(upstream, version, output):
     lock = json.loads((ROOT / "sources/librenms.json").read_text())
+    for required in lock["paths"]:
+        if not (upstream / required).exists():
+            raise ValueError("Pinned input checkout is incomplete: " + required)
     revision = subprocess.check_output(["git", "-C", str(upstream), "rev-parse", "HEAD"], text=True).strip()
     if revision != lock["revision"]:
         raise ValueError("Upstream checkout does not match sources/librenms.json")
@@ -279,8 +284,14 @@ def build(upstream, version, output):
     (output / "manifest.json").write_bytes(encode(manifest))
     coverage = {"definitions": len(definitions), "systems": len({item["match"]["os"] for item in definitions}),
                 "upstreamRevision": revision, "unsupported": report}
+    def load_inventory_yaml(text):
+        try:
+            return yaml.load(text, Loader=UniqueLoader)  # nosec B506
+        except yaml.YAMLError as error:
+            raise ValueError(str(error)) from error
+    coverage["inventory"] = source_inventory.collect(upstream, definitions, report, load_inventory_yaml)
     (output / "coverage.json").write_bytes(encode(coverage))
-    print(json.dumps({key: value for key, value in coverage.items() if key != "unsupported"} | {"unsupported": len(report), "shardBytes": sum(item["downloadBytes"] for item in shards)}))
+    print(json.dumps({key: value for key, value in coverage.items() if key not in ("unsupported", "inventory")} | {"unsupported": len(report), "sourceStatus": coverage["inventory"]["totals"], "phpSources": coverage["inventory"]["phpSources"], "shardBytes": sum(item["downloadBytes"] for item in shards)}))
 
 
 def main():

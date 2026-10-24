@@ -66,7 +66,10 @@ jobs:
           sparse-checkout: |
             resources/definitions/os_discovery
             resources/definitions/os_detection
-            includes/discovery/sensors/state
+            includes/discovery
+            LibreNMS/OS
+            LibreNMS/Device
+            LibreNMS/Interfaces/Discovery
             LICENSE.txt
           sparse-checkout-cone-mode: false
       - name: Build catalogue twice
