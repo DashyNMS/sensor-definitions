@@ -4,7 +4,9 @@ Use Python 3.12 and Git; publication also needs GitHub CLI.
 
 ## Build and test
 
-Install `requirements.txt`. Check out the exact commit in `sources/librenms.json` into `.upstream`, including all paths listed there and `LICENSE.txt`: OS discovery/detection definitions, the discovery include tree, OS classes and supporting device/interfaces directories. The build rejects incomplete checkouts. Never execute upstream discovery code.
+Install `requirements.txt`. Check out the exact commit in `sources/librenms.json` into `.upstream`, including all paths listed there and `LICENSE.txt`: OS discovery/detection definitions, the discovery include tree, OS classes, supporting device/interfaces directories and MIBs. The build rejects incomplete checkouts and non-LibreNMS source repositories. Never execute upstream discovery code.
+
+The official pack imports definitions exclusively from official LibreNMS. YAML uses `state_name` when present and otherwise the original `oid`, independently of the reading's `value` field. Missing numeric OIDs are resolved from qualified `value`/`oid` symbols using pinned PySMI/Lark syntax-tree parsing, including module imports. Only resolved numbers and provenance enter the pack; no MIB runtime, generated Python or discovery code runs in clients. Missing/ambiguous modules, dynamic identities and unsupported syntax are reported. MIB facts never supply severity; that still comes from explicit LibreNMS state tables.
 
 ```text
 python -m pip install -r requirements.txt

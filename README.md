@@ -14,7 +14,7 @@ DashyNMS sensor definitions translates numeric state readings into labels and st
 - **Choose the source:** use the official catalogue or a compatible custom repository. Selecting a source trusts its publisher; checksums detect corruption, not a compromised publisher.
 - **Control the feature:** definitions are optional. Files survive sign-out; explicitly turning the setting off removes them.
 
-The importer supports literal YAML state tables and Cisco and Axis PHP discovery tables. It never executes discovery code or redistributes the complete MIB collection. Unsupported, dynamic and conflicting mappings are reported rather than guessed. Not every sensor is supported yet; each data tag contains a coverage report.
+The official pack imports definitions exclusively from LibreNMS. The importer supports literal YAML state tables, including implicit state names and fixed OID templates, and Cisco and Axis PHP discovery tables. Missing numeric OIDs can be resolved from official MIB files during generation. It never executes discovery code or redistributes the complete MIB collection. Unsupported, dynamic and conflicting mappings are reported rather than guessed. Not every sensor is supported yet; each data tag contains a coverage report.
 
 ## Updates and versions
 

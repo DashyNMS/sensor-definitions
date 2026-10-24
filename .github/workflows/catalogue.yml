@@ -39,6 +39,7 @@ jobs:
             LibreNMS/OS
             LibreNMS/Device
             LibreNMS/Interfaces/Discovery
+            mibs
             LICENSE.txt
           sparse-checkout-cone-mode: false
       - run: python tools/catalogue.py build --upstream .upstream --version 1.0.0 --output artifacts/first

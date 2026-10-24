@@ -39,6 +39,7 @@ jobs:
             LibreNMS/OS
             LibreNMS/Device
             LibreNMS/Interfaces/Discovery
+            mibs
             LICENSE.txt
           sparse-checkout-cone-mode: false
       - name: Build catalogue

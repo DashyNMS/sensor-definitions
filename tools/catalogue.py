@@ -52,8 +52,9 @@ UniqueLoader.add_constructor("tag:yaml.org,2002:value", lambda loader, node: loa
 def oid_prefix(value):
     if not isinstance(value, str):
         raise ValueError("No explicit numeric OID")
-    # Only a trailing index placeholder is understood. No expressions in OIDs.
-    value = re.sub(r"\.?\{\{\s*\$index\s*\}\}$", "", value).strip(".")
+    # LibreNMS uses noindex to suppress a dynamic suffix on a fixed OID.
+    # Only these trailing placeholders are supported; no arbitrary expressions.
+    value = re.sub(r"\.?\{\{\s*\$(?:index|noindex)\s*\}\}$", "", value).strip(".")
     if not OID.fullmatch(value):
         raise ValueError("Dynamic or malformed numeric OID")
     return value
@@ -86,6 +87,7 @@ def definition(os_name, sensor_type, oid, states, path, symbol):
 
 def import_yaml(upstream, report):
     result = []
+    resolver = None
     for file in sorted((upstream / "resources/definitions/os_discovery").glob("*.yaml")):
         path = file.relative_to(upstream).as_posix()
         try:
@@ -99,9 +101,27 @@ def import_yaml(upstream, report):
                     if not isinstance(item, dict):
                         raise ValueError("Non-mapping state entry")
                     item = defaults | item
-                    # state_name, not a guessed MIB/value name, is sensor_type.
-                    result.append(definition(file.stem, item.get("state_name"), item.get("num_oid"),
-                                             item.get("states"), path, item.get("state_name", "")))
+                    # LibreNMS uses state_name ?? oid, independently of value.
+                    sensor_type = item.get("state_name") if item.get("state_name") is not None else item.get("oid")
+                    numeric = item.get("num_oid")
+                    if isinstance(numeric, str) and "$noindex" in numeric and "noindex" in item:
+                        raise ValueError("Explicit noindex context requires runtime resolution")
+                    textual = item.get("value") if item.get("value") is not None else item.get("oid")
+                    mib_paths = set()
+                    if not numeric:
+                        from mib_resolution import MibResolver
+                        resolver = resolver or MibResolver(upstream)
+                        if not isinstance(textual, str):
+                            raise ValueError("No textual OID for numeric resolution")
+                        if "::" not in textual:
+                            raise ValueError("Unqualified textual OID requires explicit MIB selection")
+                        resolver.used.clear()
+                        numeric = resolver.oid(textual)
+                        mib_paths = set(resolver.used)
+                    mapped = definition(file.stem, sensor_type, numeric, item.get("states"), path, sensor_type)
+                    mapped["sourceRefs"].extend({"sourceId": "librenms", "path": source_path,
+                        "symbol": textual, "suppliesSeverity": False} for source_path in sorted(mib_paths))
+                    result.append(mapped)
                 except ValueError as error:
                     report.append({"path": path, "entry": index, "reason": str(error)})
         except (ValueError, yaml.YAMLError, AttributeError) as error:
@@ -232,6 +252,8 @@ def compress(raw):
 
 def build(upstream, version, output):
     lock = json.loads((ROOT / "sources/librenms.json").read_text())
+    if lock["repository"] != "https://github.com/librenms/librenms":
+        raise ValueError("Official catalogue inputs must come from LibreNMS")
     for required in lock["paths"]:
         if not (upstream / required).exists():
             raise ValueError("Pinned input checkout is incomplete: " + required)
