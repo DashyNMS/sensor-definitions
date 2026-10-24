@@ -30,11 +30,13 @@ def collect(upstream, definitions, unsupported, load_yaml):
     for directory in (upstream / "includes/discovery", upstream / "LibreNMS/OS"):
         for file in directory.rglob("*.php"):
             candidates.add(file)
+    if (upstream / "LibreNMS/OS.php").is_file():
+        candidates.add(upstream / "LibreNMS/OS.php")
     for file in sorted(candidates):
         path = file.relative_to(upstream).as_posix()
         reasons = sorted(set(problems[path]))
         status = "partial" if mappings[path] and reasons else "imported" if mappings[path] else "unsupported"
-        relevant = file in state_files or bool(marker.search(file.read_text(encoding="utf-8")))
+        relevant = file in state_files or bool(reasons) or bool(marker.search(file.read_text(encoding="utf-8")))
         if not relevant and not mappings[path]:
             status = "no-static-state-marker"
         if not mappings[path] and not reasons:

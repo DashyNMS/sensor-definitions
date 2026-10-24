@@ -5,13 +5,35 @@ import re
 from tree_sitter import Language, Parser
 import tree_sitter_php
 
+NUMERIC = re.compile(r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?")
+
+
+def numeric_string(value):
+    return isinstance(value, str) and bool(NUMERIC.fullmatch(value.strip(" \t\r\n\v\f")))
+
 
 class Unknown:
-    def __init__(self, expression):
+    def __init__(self, expression, origin=None):
         self.expression = expression
+        self.origin = origin
 
     def __repr__(self):
-        return "Unknown(" + repr(self.expression) + ")"
+        return "Unknown(" + repr(self.expression) + ", " + repr(self.origin) + ")"
+
+
+class DeviceValues(dict):
+    def get(self, key, default=None):
+        return super().get(key) if key in self else Unknown("Unmodelled device field", "device:unsupported")
+
+
+def device_dependent(value):
+    if isinstance(value, Unknown):
+        return bool(value.origin and value.origin.startswith("device:"))
+    if isinstance(value, dict):
+        return any(device_dependent(item) for item in value.values())
+    if isinstance(value, Template):
+        return any(device_dependent(item) for item in value.parts)
+    return False
 
 
 class Template:
@@ -24,23 +46,98 @@ class Template:
         return "Template(" + repr(self.parts) + ")"
 
 
+class OidChoices:
+    """Only numeric OID alternatives; never used to combine labels or severity."""
+    def __init__(self, values):
+        self.values = sorted(set(value for value in values if value is not None))
+        if not self.values or len(self.values) > 64:
+            raise LimitExceeded("Numeric OID alternative limit")
+
+    def __repr__(self):
+        return "OidChoices(" + repr(self.values) + ")"
+
+
 class LimitExceeded(ValueError):
     pass
 
 
+def source_structure(source):
+    """Resolve an OS class's declared parent using namespace/import syntax."""
+    if len(source) > 2 * 1024 * 1024:
+        raise LimitExceeded("PHP source size limit")
+    tree = Parser(Language(tree_sitter_php.language_php())).parse(source)
+    if tree.root_node.has_error or tree.root_node.descendant_count > 200000:
+        raise ValueError("Unsupported PHP class routing syntax")
+    namespace, aliases, parents, namespaces = "", {}, [], 0
+    pending = list(tree.root_node.named_children)
+    for node in pending:
+        if node.type == "namespace_definition":
+            namespaces += 1
+            if namespaces > 1:
+                raise ValueError("Multiple PHP namespaces require routing analysis")
+            name = next((child for child in node.named_children if child.type == "namespace_name"), None)
+            if name:
+                namespace = name.text.decode()
+            body = node.child_by_field_name("body")
+            if body:
+                pending.extend(body.named_children)
+        elif node.type == "namespace_use_declaration":
+            for clause in node.named_children:
+                if clause.type == "namespace_use_clause":
+                    match = re.fullmatch(r"([A-Za-z_\\][A-Za-z0-9_\\]*)(?:\s+as\s+([A-Za-z_][A-Za-z0-9_]*))?", clause.text.decode())
+                    if match:
+                        aliases[match[2] or match[1].split("\\")[-1]] = match[1].lstrip("\\")
+        elif node.type == "class_declaration":
+            base = next((child for child in node.named_children if child.type == "base_clause"), None)
+            if base and base.named_children:
+                name = base.named_children[0].text.decode()
+                parts = name.lstrip("\\").split("\\")
+                if name.startswith("\\"):
+                    parents.append(name[1:])
+                elif parts[0] in aliases:
+                    parents.append("\\".join([aliases[parts[0]], *parts[1:]]))
+                else:
+                    parents.append("\\".join([namespace, name]).lstrip("\\"))
+    pending = [tree.root_node]
+    while pending:
+        node = pending.pop()
+        if node.type in ("include_expression", "require_expression", "include_once_expression", "require_once_expression"):
+            return parents, True
+        pending.extend(node.named_children)
+    return parents, False
+
+
+def parent_class(source):
+    return source_structure(source)[0]
+
+
 def known(value):
-    if isinstance(value, (Unknown, Template)):
+    if isinstance(value, (Unknown, Template, OidChoices)):
         return False
     if isinstance(value, dict):
         return all(known(item) for item in value.values())
     return True
 
 
+def php_truth(value):
+    return value not in ("", "0") if isinstance(value, str) else bool(value)
+
+
+def php_string(value):
+    if value is None or value is False:
+        return ""
+    if value is True:
+        return "1"
+    return str(value) if isinstance(value, (str, int)) else Unknown("Unsupported PHP string conversion")
+
+
 def identity(value):
     if isinstance(value, Unknown):
-        return ("runtime", value.expression)
+        return ("runtime", value.expression, value.origin)
     if isinstance(value, Template):
         return tuple(identity(part) for part in value.parts)
+    if isinstance(value, OidChoices):
+        return ("oid-alternatives", tuple(value.values))
     if isinstance(value, dict):
         return ("unsupported", repr(value))
     return value
@@ -48,9 +145,11 @@ def identity(value):
 
 def describe(value):
     if isinstance(value, Unknown):
-        return {"runtime": value.expression}
+        return {"runtime": value.expression, **({"origin": value.origin} if value.origin else {})}
     if isinstance(value, Template):
         return {"parts": [describe(part) for part in value.parts]}
+    if isinstance(value, OidChoices):
+        return {"oidAlternatives": value.values}
     return value
 
 
@@ -59,7 +158,7 @@ def bounded(value, depth=0):
         raise LimitExceeded("PHP value nesting limit")
     if isinstance(value, str) and len(value) > 65536:
         raise LimitExceeded("PHP string size limit")
-    if type(value) is int and value.bit_length() > 128:
+    if type(value) is int and not -(2 ** 63) <= value < 2 ** 63:
         raise LimitExceeded("PHP integer size limit")
     if isinstance(value, Template):
         if len(value.parts) > 256:
@@ -99,11 +198,26 @@ class Analyser:
                     field, expected = self.expr(children[1], env), self.expr(right, env)
                     if field in ("os", "os_group", "hardware", "version", "sysObjectID") and isinstance(expected, str):
                         return {"field": field, "op": "equals" if operator in ("==", "===") else "notEquals", "value": expected}
+            if operator in ("==", "===", "!=", "!=="):
+                field_value, expected = self.expr(left, env), self.expr(right, env)
+                if isinstance(field_value, Unknown) and field_value.origin and field_value.origin.startswith("device:"):
+                    field = field_value.origin.split(":", 1)[1]
+                    if field in ("os", "hardware", "version", "sysObjectID") and isinstance(expected, str):
+                        return {"field": field, "op": "equals" if operator in ("==", "===") else "notEquals", "value": expected}
         if node.type == "function_call_expression":
             name = self.text(node.child_by_field_name("function"))
             arguments = node.child_by_field_name("arguments").named_children
             if arguments:
                 value_node = arguments[0].named_children[0]
+                symbolic = self.expr(value_node, env)
+                if isinstance(symbolic, Unknown) and symbolic.origin and symbolic.origin.startswith("device:"):
+                    field = symbolic.origin.split(":", 1)[1]
+                    if name == "isset" and field in ("os", "hardware", "version", "sysObjectID"):
+                        return {"field": field, "op": "present"}
+                    if name in ("strstr", "str_contains") and len(arguments) == 2 and field in ("hardware", "version", "sysObjectID"):
+                        expected = self.expr(arguments[1].named_children[0], env)
+                        if isinstance(expected, str):
+                            return {"field": field, "op": "contains", "value": expected}
                 if value_node.type == "subscript_expression" and self.text(value_node.named_children[0]) == "$device":
                     field = self.expr(value_node.named_children[1], env)
                     if name == "isset" and field in ("os", "hardware", "version", "sysObjectID", "os_group"):
@@ -113,7 +227,7 @@ class Analyser:
                         if isinstance(expected, str) and field in ("hardware", "version", "sysObjectID"):
                             return {"field": field, "op": "contains", "value": expected}
         value = self.expr(node, env)
-        return bool(value) if known(value) else {"unsupported": self.text(node)}
+        return php_truth(value) if known(value) else {"unsupported": self.text(node)}
 
     def step(self):
         self.steps += 1
@@ -126,7 +240,7 @@ class Analyser:
 
     def args(self, node, env):
         arguments = node.child_by_field_name("arguments") or next((child for child in node.named_children if child.type == "arguments"), None)
-        return [self.expr(item.named_children[-1], env) for item in arguments.named_children if item.type == "argument"] if arguments else []
+        return [bounded(self.expr(item.named_children[-1], env)) for item in arguments.named_children if item.type == "argument"] if arguments else []
 
     def expr(self, node, env):
         self.step()
@@ -139,8 +253,8 @@ class Analyser:
         if kind == "integer":
             literal = text.replace("_", "")
             if literal.startswith(("0x", "0X", "0b", "0B", "0o", "0O")):
-                return int(literal, 0)
-            return int(literal, 8 if len(literal) > 1 and literal.startswith("0") else 10)
+                return bounded(int(literal, 0))
+            return bounded(int(literal, 8 if len(literal) > 1 and literal.startswith("0") else 10))
         if kind == "boolean":
             return text.lower() == "true"
         if kind == "null":
@@ -149,7 +263,8 @@ class Analyser:
             return text[1:-1].replace("\\'", "'").replace("\\\\", "\\")
         if kind == "encapsed_string":
             parts = [self.text(item) if item.type == "string_content" else self.expr(item, env) for item in children]
-            return "".join(str(part) for part in parts) if all(known(part) for part in parts) else Template(parts)
+            parts = [php_string(part) if known(part) else part for part in parts]
+            return bounded("".join(parts)) if all(isinstance(part, str) for part in parts) else Template(parts)
         if kind == "variable_name":
             return env.get(text, Unknown(text))
         if kind == "array_creation_expression":
@@ -163,6 +278,8 @@ class Analyser:
                     position += 1
                 elif len(values) == 2:
                     key = self.expr(values[0], env)
+                    if isinstance(key, str) and re.fullmatch(r"-?(?:0|[1-9][0-9]*)", key) and str(int(key)) == key and -(2 ** 63) <= int(key) < 2 ** 63:
+                        key = int(key)
                     if not isinstance(key, (str, int)):
                         return Unknown(text)
                     if key in result:
@@ -171,6 +288,8 @@ class Analyser:
             return result
         if kind == "subscript_expression":
             source, key = self.expr(children[0], env), self.expr(children[1], env) if len(children) > 1 else None
+            if isinstance(source, Unknown) and source.origin == "snmp-row" and isinstance(key, str):
+                return Unknown(text, "snmp-field")
             return source.get(key, None) if isinstance(source, dict) and isinstance(key, (str, int)) else Unknown(text)
         if kind == "class_constant_access_expression":
             enum, member = self.text(children[0]).split("\\")[-1], self.text(children[-1])
@@ -193,21 +312,42 @@ class Analyser:
             return updated if text.startswith(("++", "--")) else value
         if kind == "binary_expression":
             left_node, right_node = node.child_by_field_name("left"), node.child_by_field_name("right")
-            left, right = self.expr(left_node, env), self.expr(right_node, env)
             operator = node.text[left_node.end_byte - node.start_byte:right_node.start_byte - node.start_byte].decode().strip()
+            left = self.expr(left_node, env)
+            if operator == "??" and known(left) and left is not None:
+                return left
+            if operator in ("&&", "and") and known(left) and not php_truth(left):
+                return False
+            if operator in ("||", "or") and known(left) and php_truth(left):
+                return True
+            if not known(left) and operator in ("&&", "and", "||", "or", "??"):
+                pending = [right_node]
+                while pending:
+                    child = pending.pop()
+                    self.step()
+                    if child.type in ("assignment_expression", "augmented_assignment_expression", "update_expression", "include_expression", "require_expression"):
+                        raise ValueError("Conditional expression side effects require scope analysis")
+                    pending.extend(child.named_children)
+            right = self.expr(right_node, env)
             if operator == ".":
-                return str(left) + str(right) if known(left) and known(right) else Template([left, right])
+                parts = [php_string(part) if known(part) else part for part in (left, right)]
+                return bounded("".join(parts)) if all(isinstance(part, str) for part in parts) else Template(parts)
             if operator == "??":
                 return right if left is None else left
             if known(left) and known(right):
+                if operator in ("===", "!==", "==", "!=") and isinstance(left, dict):
+                    return Unknown("PHP array comparison requires scope analysis")
+                if operator in ("==", "!=") and (type(left) is not type(right)
+                        or isinstance(left, str) and left != right and numeric_string(left) and numeric_string(right)):
+                    return Unknown("PHP loose comparison requires coercion")
                 if operator in ("===", "=="):
                     return type(left) is type(right) and left == right
                 if operator in ("!==", "!="):
                     return type(left) is not type(right) or left != right
                 if operator in ("&&", "and"):
-                    return bool(left and right)
+                    return php_truth(left) and php_truth(right)
                 if operator in ("||", "or"):
-                    return bool(left or right)
+                    return php_truth(left) or php_truth(right)
                 if operator in ("+", "-", "*", "/", "<", ">", "<=", ">=") and type(left) in (int, float) and type(right) in (int, float):
                     if operator == "+": return left + right
                     if operator == "-": return left - right
@@ -217,35 +357,50 @@ class Analyser:
                     if operator == ">": return left > right
                     if operator == "<=": return left <= right
                     if operator == ">=": return left >= right
-            return Unknown(text)
+            return Unknown(text, "device:condition" if device_dependent(left) or device_dependent(right) else None)
         if kind == "unary_op_expression":
             value = self.expr(children[-1], env)
             if known(value):
-                if text.startswith("!"): return not value
+                if text.startswith("!"): return not php_truth(value)
                 if text.startswith("-") and type(value) is int: return -value
-            return Unknown(text)
+            return Unknown(text, "device:condition" if device_dependent(value) else None)
         if kind == "match_expression":
             value = self.expr(node.child_by_field_name("condition"), env)
             default = None
+            alternatives = []
             for arm in node.child_by_field_name("body").named_children:
+                if not known(value):
+                    expression = arm.child_by_field_name("return_expression")
+                    alternatives.append(self.expr(expression, env) if expression.type in ("string", "null", "variable_name") else Unknown("Non-literal OID alternative"))
                 if arm.type == "match_default_expression":
                     default = arm.child_by_field_name("return_expression")
                 elif arm.type == "match_conditional_expression":
-                    tests = [self.expr(item, env) for item in arm.child_by_field_name("conditional_expressions").named_children]
-                    if known(value) and value in tests:
+                    nodes = arm.child_by_field_name("conditional_expressions").named_children
+                    if known(value) and any(item.type not in ("string", "integer", "boolean", "null", "variable_name", "class_constant_access_expression") for item in nodes):
+                        return Unknown("Unsupported match case expression")
+                    tests = [self.expr(item, env) for item in nodes] if known(value) else []
+                    if known(value) and any(not known(test) for test in tests):
+                        return Unknown("Runtime match case")
+                    if known(value) and any(type(value) is type(test) and value == test for test in tests):
                         return self.expr(arm.child_by_field_name("return_expression"), env)
+            if not known(value) and alternatives and all(option is None or isinstance(option, str) and re.fullmatch(r"\.?[0-2](?:\.[0-9]+)+", option) for option in alternatives):
+                return OidChoices(alternatives) if any(option is not None for option in alternatives) else None
             return self.expr(default, env) if known(value) and default else Unknown(text)
         if kind == "function_call_expression":
             name, args = self.text(node.child_by_field_name("function")), self.args(node, env)
             if name == "create_state_index" and len(args) >= 2:
+                if node.parent.type != "expression_statement":
+                    raise ValueError("State registration in an expression requires scope analysis")
                 env.setdefault("@states", {})[identity(args[0])] = deepcopy(args[1])
             elif name == "discover_sensor" and len(args) >= 6 and args[1] == "state":
+                if node.parent.type != "expression_statement":
+                    raise ValueError("Sensor discovery in an expression requires scope analysis")
                 self.emit(args[5], args[3], env.get("@states", {}).get(identity(args[5])), node, env)
             elif name in ("is_numeric", "is_array", "isset", "empty") and args and known(args[0]):
-                if name == "is_numeric": return type(args[0]) in (int, float)
+                if name == "is_numeric": return type(args[0]) in (int, float) or numeric_string(args[0])
                 if name == "is_array": return isinstance(args[0], dict)
                 if name == "isset": return args[0] is not None
-                return not args[0]
+                return not php_truth(args[0])
             elif name == "count" and args and isinstance(args[0], dict):
                 return len(args[0])
             elif name == "in_array" and len(args) >= 2 and known(args[0]) and isinstance(args[1], dict):
@@ -256,7 +411,12 @@ class Analyser:
                 if name == "strtolower": return args[0].lower()
                 chars = args[1] if len(args) > 1 and isinstance(args[1], str) else None
                 return getattr(args[0], {"trim": "strip", "rtrim": "rstrip", "ltrim": "lstrip"}[name])(chars)
-            return Unknown(text)
+            elif name in ("snmpwalk_cache_oid", "snmpwalk_cache_multi_oid", "snmpwalk_cache_twopart_oid", "snmpwalk_cache_threepart_oid",
+                          "snmpwalk_cache_triple_oid", "snmp_get_multi", "snmp_get_multi_oid"):
+                return Unknown(text, "snmp-table")
+            if name.startswith("snmp_"):
+                return Unknown(text, "snmp-scalar")
+            return Unknown(text, "device:condition" if any(device_dependent(arg) for arg in args) else None)
         if kind in ("include_expression", "require_expression", "include_once_expression", "require_once_expression"):
             path = self.expr(children[0], env) if children else Unknown(text)
             if isinstance(path, str):
@@ -268,6 +428,8 @@ class Analyser:
             scope, name, args = self.text(node.child_by_field_name("scope")).split("\\")[-1], self.text(node.child_by_field_name("name")), self.args(node, env)
             if scope == "StateTranslation" and name == "define" and len(args) >= 3:
                 return {"descr": args[0], "value": args[1], "generic": args[2]}
+            if scope == "SnmpQuery":
+                return Unknown(text, "snmp-table" if name in ("walk", "multiwalk") else "snmp-query")
             return Unknown(text)
         if kind == "object_creation_expression" and children and self.text(children[0]).split("\\")[-1] == "Sensor":
             args = self.args(node, env)
@@ -275,17 +437,29 @@ class Analyser:
         if kind == "member_call_expression":
             target = self.expr(node.child_by_field_name("object"), env)
             name, args = self.text(node.child_by_field_name("name")), self.args(node, env)
+            if self.text(node.child_by_field_name("object")) == "$this" and name in ("getDevice", "getDeviceArray"):
+                return env["$device"]
+            if isinstance(target, Unknown) and target.origin in ("snmp-query", "snmp-table"):
+                return Unknown(text, "snmp-table" if name in ("walk", "multiwalk", "valuesByIndex", "valuesByIndexNumber") else target.origin)
             if name == "discover" and args and isinstance(args[0], dict):
+                sensor = args[0].get("@sensor")
+                if isinstance(sensor, dict) and sensor.get("sensor_class") == "state":
+                    states = env.get("@states", {}).get(identity(sensor.get("sensor_type")))
+                    if states is not None:
+                        self.emit(sensor.get("sensor_type"), sensor.get("sensor_oid"), states, node, env)
                 return args[0]
             if name == "withStateTranslations" and len(args) >= 2 and isinstance(target, dict) and "@sensor" in target:
                 sensor = target["@sensor"]
                 if sensor.get("sensor_class") == "state":
                     self.emit(sensor.get("sensor_type"), sensor.get("sensor_oid"), args[1], node, env)
             return Unknown(text)
+        if kind == "member_access_expression":
+            target = self.expr(node.child_by_field_name("object"), env)
+            return target.get(self.text(node.child_by_field_name("name"))) if isinstance(target, DeviceValues) else Unknown(text)
         if kind == "conditional_expression":
             condition = self.expr(node.child_by_field_name("condition"), env)
             if known(condition):
-                return self.expr(node.child_by_field_name("body" if condition else "alternative"), env)
+                return self.expr(node.child_by_field_name("body" if php_truth(condition) else "alternative"), env)
         return Unknown(text)
 
     def assign(self, node, value, env):
@@ -334,18 +508,21 @@ class Analyser:
         if kind in ("if_statement", "else_if_clause"):
             results = []
             remaining = contexts
+            dropped = False
             for clause in [node, *node.children_by_field_name("alternative")]:
                 following = []
                 for env in remaining:
                     condition = self.expr(clause.child_by_field_name("condition"), env) if clause.type != "else_clause" else True
-                    if not known(condition) or condition:
+                    if not known(condition) or php_truth(condition):
                         branch = deepcopy(env)
-                        if not known(condition) and (self.routing or "$device" in self.text(clause.child_by_field_name("condition"))):
+                        if not known(condition) and (self.routing or device_dependent(condition) or "$this" in self.text(clause.child_by_field_name("condition")) or "$device" in self.text(clause.child_by_field_name("condition"))):
                             branch.setdefault("@conditions", []).append(self.condition(clause.child_by_field_name("condition"), env))
-                        results.extend(self.block(clause.child_by_field_name("body"), [branch], depth + 1))
-                    if not known(condition) or not condition:
+                        branch_results = self.block(clause.child_by_field_name("body"), [branch], depth + 1)
+                        dropped = dropped or not branch_results or any(item.get("@partialFlow") is True for item in branch_results)
+                        results.extend(branch_results)
+                    if not known(condition) or not php_truth(condition):
                         branch = deepcopy(env)
-                        if not known(condition) and (self.routing or "$device" in self.text(clause.child_by_field_name("condition"))):
+                        if not known(condition) and (self.routing or device_dependent(condition) or "$this" in self.text(clause.child_by_field_name("condition")) or "$device" in self.text(clause.child_by_field_name("condition"))):
                             branch.setdefault("@conditions", []).append({"not": self.condition(clause.child_by_field_name("condition"), env)})
                         following.append(branch)
                 remaining = following
@@ -357,7 +534,11 @@ class Analyser:
             for key in set().union(*(env.keys() for env in results)):
                 values = [env.get(key, Unknown("Undefined " + key)) for env in results]
                 if key == "@conditions":
-                    joined[key] = deepcopy(contexts[0].get(key, []))
+                    if dropped:
+                        alternatives = list({repr(env.get(key, [])): env.get(key, []) for env in results}.values())
+                        joined[key] = deepcopy(alternatives[0]) if len(alternatives) == 1 else [{"any": [{"all": branch} if branch else True for branch in alternatives]}]
+                    else:
+                        joined[key] = deepcopy(contexts[0].get(key, []))
                 elif key == "@states":
                     states = {}
                     for name in set().union(*(value.keys() for value in values if isinstance(value, dict))):
@@ -366,6 +547,8 @@ class Analyser:
                     joined[key] = states
                 else:
                     joined[key] = values[0] if all(repr(value) == repr(values[0]) for value in values) else Unknown("Conditional value " + key)
+            if dropped:
+                joined["@partialFlow"] = True
             return [joined]
         if kind == "else_clause":
             return self.block(node.child_by_field_name("body"), contexts, depth + 1)
@@ -380,12 +563,13 @@ class Analyser:
                         self.problems.append({"path": self.path, "line": node.start_point.row + 1,
                                               "reason": "Runtime for-loop bounds"})
                         break
-                    if not condition:
+                    if not php_truth(condition):
                         output.append(env)
                         break
                     following = self.block(node.child_by_field_name("body"), [env], depth + 1)
                     if not following:
                         # Break/return control flow cannot safely propagate a value.
+                        self.problems.append({"path": self.path, "line": node.start_point.row + 1, "reason": "Loop control flow requires scope analysis"})
                         break
                     env = following[0]
                     self.expr(node.child_by_field_name("update"), env)
@@ -410,12 +594,17 @@ class Analyser:
                         # PHP switch uses loose equality. Only compare values whose
                         # numeric/string conversion is unambiguous.
                         equal = type(test) is type(value) and test == value
+                        coerced = False
                         if type(value) is int and isinstance(test, str) and re.fullmatch(r"[+-]?[0-9]+", test):
                             equal = value == int(test)
+                            coerced = True
                         if type(test) is int and isinstance(value, str) and re.fullmatch(r"[+-]?[0-9]+", value):
                             equal = test == int(value)
+                            coerced = True
                         if not known(test):
                             raise ValueError("Runtime switch case")
+                        if isinstance(value, dict) or type(value) is not type(test) and not coerced or isinstance(value, str) and isinstance(test, str) and value != test and numeric_string(value) and numeric_string(test):
+                            raise ValueError("Unsupported PHP switch coercion")
                         if equal:
                             selected = index
                             break
@@ -442,7 +631,8 @@ class Analyser:
             output = []
             for original in contexts:
                 collection = self.expr(values[0], original)
-                entries = list(collection.items()) if isinstance(collection, dict) else [(Unknown("index"), Unknown("row"))]
+                snmp = isinstance(collection, Unknown) and collection.origin == "snmp-table"
+                entries = list(collection.items()) if isinstance(collection, dict) else [(Unknown("index", "snmp-index" if snmp else None), Unknown("row", "snmp-row" if snmp else None))]
                 if len(entries) > 1024:
                     raise LimitExceeded("PHP static loop size limit")
                 for key, value in entries:
@@ -453,8 +643,12 @@ class Analyser:
                         self.assign(binding.named_children[1], value, env)
                     else:
                         self.assign(binding, value, env)
-                    self.block(node.child_by_field_name("body"), [env], depth + 1)
-                output.append(original)
+                    following = self.block(node.child_by_field_name("body"), [env], depth + 1)
+                    if not following:
+                        self.problems.append({"path": self.path, "line": node.start_point.row + 1, "reason": "Loop control flow requires scope analysis"})
+                        break
+                else:
+                    output.append(original)
             return output
         if kind in ("class_declaration", "method_declaration", "function_definition", "namespace_definition"):
             body = node.child_by_field_name("body")
@@ -475,7 +669,9 @@ class Analyser:
         if kind in ("php_tag", "comment", "namespace_use_declaration", "echo_statement", "property_declaration"):
             return contexts
         self.problems.append({"path": self.path, "line": node.start_point.row + 1, "reason": "Unsupported PHP statement: " + kind})
-        return contexts
+        # An unsupported statement may change any local/table. Preserve device
+        # context but never reuse a stale literal after skipping unknown code.
+        return [{"$device": env.get("$device"), "@states": {}, "@conditions": env.get("@conditions", [])} for env in contexts]
 
     def analyse(self, source):
         if len(source) > 2 * 1024 * 1024:
@@ -485,7 +681,7 @@ class Analyser:
         root = tree.root_node
         if root.has_error or root.descendant_count > 200000:
             raise ValueError("Unsupported PHP syntax or syntax-tree size")
-        device = {name: Unknown("$device[" + name + "]") for name in ("os", "os_group", "hardware", "version", "sysObjectID")}
+        device = DeviceValues({name: Unknown("$device[" + name + "]", "device:" + name) for name in ("os", "os_group", "hardware", "version", "sysObjectID")})
         device.update(self.context)
         self.block(root, [{"$device": device, "@states": {}, "@conditions": []}])
         return self.facts, self.problems

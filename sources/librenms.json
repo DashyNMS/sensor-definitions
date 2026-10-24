@@ -8,6 +8,7 @@
     "resources/definitions/os_detection",
     "includes/discovery",
     "LibreNMS/OS",
+    "LibreNMS/OS.php",
     "LibreNMS/Device",
     "LibreNMS/Interfaces/Discovery",
     "mibs"

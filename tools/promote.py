@@ -23,6 +23,21 @@ def promotion_needed(current, incoming):
     return new > old
 
 
+def feed_updates(current, incoming):
+    versions = {manifest["catalogueVersion"] for manifest in incoming.values()}
+    if len(versions) != 1:
+        raise ValueError("Compatible feed versions must be promoted together")
+    updates = {}
+    for schema, manifest in incoming.items():
+        if schema not in (1, 2) or manifest.get("schemaVersion") != schema:
+            raise ValueError("Feed schema does not match its path")
+        # Even a newly introduced feed must pass normal version validation.
+        promotion_needed(manifest, manifest)
+        if schema not in current or promotion_needed(current[schema], manifest):
+            updates[schema] = manifest
+    return updates
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--version", required=True)
@@ -40,18 +55,26 @@ def main():
     incoming = json.loads(manifest)
     if incoming["catalogueVersion"] != args.version:
         raise ValueError("Published catalogue version mismatch")
+    manifests = {1: incoming}
+    if subprocess.run(["git", "cat-file", "-e", tag + ":data/v2/manifest.json"], capture_output=True).returncode == 0:
+        manifests[2] = json.loads(run("git", "show", tag + ":data/v2/manifest.json"))
     run("git", "config", "user.name", "github-actions[bot]")
     run("git", "config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com")
     with tempfile.TemporaryDirectory() as directory:
         work = Path(directory) / "promotion"
         run("git", "worktree", "add", "--detach", str(work), "origin/main")
         try:
-            feed = work / "feeds/v1/stable.json"
-            if not promotion_needed(json.loads(feed.read_text()), incoming):
+            current = {schema: json.loads((work / f"feeds/v{schema}/stable.json").read_text())
+                       for schema in manifests if (work / f"feeds/v{schema}/stable.json").is_file()}
+            updates = feed_updates(current, manifests)
+            if not updates:
                 print("Stable feed already uses " + args.version)
                 return
-            feed.write_text(manifest, encoding="utf-8")
-            run("git", "add", "feeds/v1/stable.json", cwd=work)
+            for schema, content in updates.items():
+                feed = work / f"feeds/v{schema}/stable.json"
+                feed.parent.mkdir(parents=True, exist_ok=True)
+                feed.write_text(json.dumps(content, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
+                run("git", "add", f"feeds/v{schema}/stable.json", cwd=work)
             run("git", "commit", "-m", "build(updates): activate LibreNMS " + args.version + " definitions", cwd=work)
             # No force push: a concurrent main change causes a retryable failure.
             run("git", "push", "origin", "HEAD:refs/heads/main", cwd=work)

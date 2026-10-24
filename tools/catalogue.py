@@ -55,6 +55,8 @@ def oid_prefix(value):
     # LibreNMS uses noindex to suppress a dynamic suffix on a fixed OID.
     # Only these trailing placeholders are supported; no arbitrary expressions.
     value = re.sub(r"\.?\{\{\s*\$(?:index|noindex)\s*\}\}$", "", value).strip(".")
+    if len(value) > 1024:
+        raise ValueError("OID size limit")
     if not OID.fullmatch(value):
         raise ValueError("Dynamic or malformed numeric OID")
     return value
@@ -68,6 +70,8 @@ def state_rows(rows):
         if not isinstance(row, dict) or type(row.get("value")) is not int or type(row.get("generic")) is not int:
             raise ValueError("Non-integer state or severity")
         label = row.get("descr")
+        if isinstance(label, str) and len(label) > 1024:
+            raise ValueError("State label size limit")
         if not isinstance(label, str) or not label.strip() or "{{" in label or row["generic"] not in GENERIC:
             raise ValueError("Dynamic label or unknown generic state")
         result.append({"value": str(row["value"]), "label": label, "genericState": GENERIC[row["generic"]]})
@@ -77,7 +81,7 @@ def state_rows(rows):
 
 
 def definition(os_name, sensor_type, oid, states, path, symbol):
-    if not isinstance(sensor_type, str) or not re.fullmatch(r"[A-Za-z0-9_.:-]+", sensor_type):
+    if not isinstance(sensor_type, str) or len(sensor_type) > 256 or not re.fullmatch(r"[A-Za-z0-9_.:-]+", sensor_type):
         raise ValueError("No explicit sensor type")
     match = {"os": os_name, "sensorClass": "state", "sensorType": sensor_type, "oidPrefix": oid_prefix(oid)}
     key = f"{os_name}/{sensor_type}/{match['oidPrefix']}"
@@ -129,95 +133,19 @@ def import_yaml(upstream, report):
     return result
 
 
-def php_literal_row(body):
-    # Accept the entire row only when every field is a quoted string or integer.
-    token = re.compile(r"\s*'(?P<key>[A-Za-z_]+)'\s*=>\s*(?:'(?P<string>(?:[^'\\]|\\.)*)'|(?P<int>-?[0-9]+))\s*,?\s*")
-    result, pos = {}, 0
-    while pos < len(body):
-        item = token.match(body, pos)
-        if item is None or item.end() == pos or item["key"] in result:
-            raise ValueError("Non-literal PHP array")
-        result[item["key"]] = int(item["int"]) if item["int"] is not None else item["string"].replace("\\'", "'").replace("\\\\", "\\")
-        pos = item.end()
-    return result
-
-
-def import_cisco(upstream, report):
-    path = "includes/discovery/sensors/state/cisco.inc.php"
-    text = (upstream / path).read_text(encoding="utf-8")
-    tables_match = re.search(r"\$tables\s*=\s*\[(.*?)\n\];", text, re.S)
-    arms_match = re.search(r"\$states\s*=\s*match\s*\(\$state_name\)\s*\{(.*?)\n\s*\};", text, re.S)
-    if not tables_match or not arms_match:
-        raise ValueError("Pinned Cisco literal tables/match shape changed; review importer")
-    tables = [php_literal_row(row) for row in re.findall(r"\[([^\[\]]+)\]", tables_match[1])]
-    states = {}
-    # Require commas between names; optional separators plus overlapping spaces
-    # allow excessive backtracking when malformed input has no following arrow.
-    arm = re.compile(r"('[^']+'(?:\s*,\s*'[^']+')*)\s*=>\s*\[(.*?)\n\s*\],", re.S)
-    for match in arm.finditer(arms_match[1]):
-        names = re.findall(r"'([^']+)'", match[1])
-        bodies = re.findall(r"\[([^\[\]]+)\]", match[2])
-        # Refuse expressions, function calls or conditionals between literal rows.
-        residue = re.sub(r"\[[^\[\]]+\]", "", match[2]).replace(",", "").strip()
-        if residue:
-            report.append({"path": path, "symbol": names, "reason": "Dynamic PHP state arm"})
-            continue
-        try:
-            rows = [php_literal_row(row) for row in bodies]
-            state_rows(rows)
-            for name in names:
-                states[name] = rows
-        except ValueError as error:
-            report.append({"path": path, "symbol": names, "reason": str(error)})
-    os_names = []
-    for file in sorted((upstream / "resources/definitions/os_detection").glob("*.yaml")):
-        # SafeLoader subclass; tests reject Python object tags and duplicate keys.
-        doc = yaml.load(file.read_text(encoding="utf-8"), Loader=UniqueLoader) or {}  # nosec B506
-        if doc.get("group") == "cisco":
-            os_names.append(doc.get("os", file.stem))
-    if not os_names:
-        raise ValueError("No explicit Cisco OS group membership")
-    result = []
-    for table in tables:
-        symbol = table.get("state_name")
-        if symbol not in states:
-            report.append({"path": path, "symbol": symbol, "reason": "No supported literal state arm"})
-            continue
-        for os_name in os_names:
-            result.append(definition(os_name, symbol, table["num_oid"].rstrip("."), states[symbol], path, symbol))
-    return result
-
-
-def import_axis(upstream, report):
-    path = "includes/discovery/sensors/state/axiscam.inc.php"
-    text = (upstream / path).read_text(encoding="utf-8")
-    assignments = list(re.finditer(r"\$cur_oid\s*=\s*([^;]+);", text))
-    result = []
-    for index, assignment in enumerate(assignments):
-        block = text[assignment.end():assignments[index + 1].start() if index + 1 < len(assignments) else len(text)]
-        try:
-            oid = re.fullmatch(r"'([.0-9]+)'", assignment[1].strip())
-            names = re.findall(r"\$state_name\s*=\s*([^;]+);", block)
-            name = re.fullmatch(r"'([A-Za-z0-9_.:-]+)'", names[0].strip()) if len(names) == 1 else None
-            states = re.search(r"\$states\s*=\s*\[(.*?)\n\s*\];", block, re.S)
-            if not oid or not name or not states or len(re.findall(r"\$states\s*=", block)) != 1:
-                raise ValueError("Dynamic or unsupported Axis identity/state table")
-            residue = re.sub(r"\[[^\[\]]+\]", "", states[1]).replace(",", "").strip()
-            if residue or not re.search(r"create_state_index\(\s*\$state_name\s*,\s*\$states\s*\)", block):
-                raise ValueError("Non-literal or unregistered Axis state table")
-            if not re.search(r"discover_sensor\(\s*null\s*,\s*SensorType::State\s*,\s*\$device\s*,\s*\$cur_oid\s*\.\s*\$index\s*,\s*\$index\s*,\s*\$state_name\s*,", block):
-                raise ValueError("Unsupported Axis sensor identity")
-            rows = [php_literal_row(body) for body in re.findall(r"\[([^\[\]]+)\]", states[1])]
-            result.append(definition("axiscam", name[1], oid[1], rows, path, name[1]))
-        except ValueError as error:
-            report.append({"path": path, "entry": index, "reason": str(error)})
-    if not assignments:
-        report.append({"path": path, "reason": "No supported Axis OID assignments"})
-    return result
+def selector(match):
+    normalised = dict(match)
+    normalised.setdefault("typeMatch", "exact")
+    if not normalised.get("conditions"):
+        normalised.pop("conditions", None)
+    return json.dumps(normalised, sort_keys=True)
 
 
 def validate(catalogue, production=False):
-    schema = json.loads((ROOT / "schemas/catalogue-v1.schema.json").read_text())
+    version = catalogue.get("schemaVersion")
+    if version not in (1, 2):
+        raise ValueError("Unsupported catalogue schema")
+    schema = json.loads((ROOT / f"schemas/catalogue-v{version}.schema.json").read_text())
     jsonschema.Draft202012Validator(schema).validate(catalogue)
     source_ids = [source["id"] for source in catalogue["sources"]]
     if len(set(source_ids)) != len(source_ids):
@@ -226,11 +154,23 @@ def validate(catalogue, production=False):
         raise ValueError("Synthetic/unlicensed records cannot be published")
     ids, selectors = set(), set()
     for item in catalogue["definitions"]:
-        selector = tuple(item["match"][key] for key in ("os", "sensorClass", "sensorType", "oidPrefix"))
-        if item["id"] in ids or selector in selectors:
+        selected = selector(item["match"])
+        if item["id"] in ids or selected in selectors:
             raise ValueError("Duplicate or ambiguous definition")
         ids.add(item["id"])
-        selectors.add(selector)
+        selectors.add(selected)
+        if len(item["id"]) > 512:
+            raise ValueError("Sensor definition ID size limit")
+        if version == 2:
+            from context_rules import condition
+            match = item["match"]
+            kind = match.get("typeMatch", "exact")
+            if kind == "any" and match["sensorType"] != "*":
+                raise ValueError("Invalid any-type selector")
+            if kind == "template" and (not 0 < match["sensorType"].count("*") <= 8):
+                raise ValueError("Invalid sensor type template")
+            for predicate in match.get("conditions") or []:
+                condition(predicate)
         if len({state["value"] for state in item["states"]}) != len(item["states"]):
             raise ValueError("Duplicate state value")
         if any(ref["sourceId"] not in source_ids for ref in item["sourceRefs"]):
@@ -250,7 +190,7 @@ def compress(raw):
     return buffer.getvalue()
 
 
-def build(upstream, version, output):
+def build(upstream, version, output, review_coverage=False):
     lock = json.loads((ROOT / "sources/librenms.json").read_text())
     if lock["repository"] != "https://github.com/librenms/librenms":
         raise ValueError("Official catalogue inputs must come from LibreNMS")
@@ -263,11 +203,34 @@ def build(upstream, version, output):
     if subprocess.check_output(["git", "-C", str(upstream), "status", "--porcelain", "--untracked-files=no"], text=True).strip():
         raise ValueError("Upstream checkout has tracked modifications")
     report = []
-    items = import_yaml(upstream, report) + import_cisco(upstream, report) + import_axis(upstream, report)
+    from php_compiler import compile_sources
+    from context_rules import definition as rule_definition
+    yaml_items = import_yaml(upstream, report)
+    exact, rules = compile_sources(upstream, report, definition,
+        lambda text: yaml.load(text, Loader=UniqueLoader))  # nosec B506
+    contextual = []
+    for rule in rules:
+        try:
+            item = rule_definition(rule)
+            if item is not None:
+                contextual.append(item)
+        except ValueError as error:
+            report.append({"path": rule["path"], "line": rule["line"], "reason": str(error)})
+    # Older clients keep receiving exact, unconditional mappings. Context must
+    # never be discarded to make a new rule fit a schema-1 reader.
+    compatible_report = report + [{"path": item["sourceRefs"][0]["path"], "symbol": item["sourceRefs"][0]["symbol"],
+        "reason": "Source context requires a schema-2 reader"} for item in contextual]
+    write_release(upstream, lock, version, output, yaml_items + exact, compatible_report, 1, review_coverage)
+    write_release(upstream, lock, version, output / "v2", yaml_items + exact + contextual, report, 2, review_coverage)
+
+
+def write_release(upstream, lock, version, output, items, report, schema_version, review_coverage=False):
+    report = [json.loads(item) for item in sorted({json.dumps(item, sort_keys=True) for item in report})]
+    revision = lock["revision"]
     # Identical duplicate imports combine their provenance; conflicting ones are omitted.
     grouped = collections.defaultdict(list)
     for item in items:
-        grouped[tuple(item["match"].values())].append(item)
+        grouped[selector(item["match"])].append(item)
     definitions = []
     for group in grouped.values():
         first = group[0]
@@ -278,7 +241,7 @@ def build(upstream, version, output):
         first["sourceRefs"] = [json.loads(ref) for ref in first["sourceRefs"]]
         definitions.append(first)
     licence = (upstream / "LICENSE.txt").read_text(encoding="utf-8")
-    catalogue = {"schemaVersion": 1,
+    catalogue = {"schemaVersion": schema_version,
                  "sources": [{"id": "librenms", "kind": "librenms-discovery", "location": lock["repository"],
                               "revision": revision, "licence": lock["licence"], "notice": licence}],
                  "definitions": sorted(definitions, key=lambda item: item["id"])}
@@ -300,9 +263,9 @@ def build(upstream, version, output):
                        "downloadBytes": len(compressed), "expandedBytes": len(raw), "definitions": len(shard["definitions"])})
     notices = ("LibreNMS-derived sensor mappings\nSource: " + lock["repository"] + "\nRevision: " + revision + "\n\n" + licence).encode("utf-8")
     (output / "notices.txt").write_bytes(notices)
-    manifest = {"schemaVersion": 1, "catalogueVersion": version, "shards": shards,
+    manifest = {"schemaVersion": schema_version, "catalogueVersion": version, "shards": shards,
                 "notices": {"sha256": hashlib.sha256(notices).hexdigest(), "downloadBytes": len(notices)}}
-    jsonschema.Draft202012Validator(json.loads((ROOT / "schemas/index-v1.schema.json").read_text())).validate(manifest)
+    jsonschema.Draft202012Validator(json.loads((ROOT / f"schemas/index-v{schema_version}.schema.json").read_text())).validate(manifest)
     (output / "manifest.json").write_bytes(encode(manifest))
     coverage = {"definitions": len(definitions), "systems": len({item["match"]["os"] for item in definitions}),
                 "upstreamRevision": revision, "unsupported": report}
@@ -312,6 +275,14 @@ def build(upstream, version, output):
         except yaml.YAMLError as error:
             raise ValueError(str(error)) from error
     coverage["inventory"] = source_inventory.collect(upstream, definitions, report, load_inventory_yaml)
+    from coverage_gate import check
+    baseline = json.loads((ROOT / "sources/coverage-baseline.json").read_text())
+    try:
+        coverage["gate"] = {"status": "passed", **check(definitions, coverage["inventory"], baseline)}
+    except ValueError as error:
+        if not review_coverage:
+            raise
+        coverage["gate"] = {"status": "review-required", "reason": str(error)}
     (output / "coverage.json").write_bytes(encode(coverage))
     print(json.dumps({key: value for key, value in coverage.items() if key not in ("unsupported", "inventory")} | {"unsupported": len(report), "sourceStatus": coverage["inventory"]["totals"], "phpSources": coverage["inventory"]["phpSources"], "shardBytes": sum(item["downloadBytes"] for item in shards)}))
 
@@ -323,8 +294,9 @@ def main():
     command.add_argument("--upstream", type=Path, required=True)
     command.add_argument("--version", required=True)
     command.add_argument("--output", type=Path, required=True)
+    command.add_argument("--review-coverage", action="store_true", help="Write non-publishable diagnostics for a reviewed baseline update")
     args = parser.parse_args()
-    build(args.upstream.resolve(), args.version, args.output.resolve())
+    build(args.upstream.resolve(), args.version, args.output.resolve(), args.review_coverage)
 
 
 if __name__ == "__main__":
