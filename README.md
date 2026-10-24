@@ -14,7 +14,7 @@ DashyNMS sensor definitions translates numeric state readings into labels and st
 - **Choose the source:** use the official catalogue or a compatible custom repository. Selecting a source trusts its publisher; checksums detect corruption, not a compromised publisher.
 - **Control the feature:** definitions are optional. Files survive sign-out; explicitly turning the setting off removes them.
 
-The official pack imports definitions exclusively from LibreNMS. The importer supports literal YAML state tables, including implicit state names and fixed OID templates, and Cisco and Axis PHP discovery tables. Missing numeric OIDs can be resolved from official MIB files during generation. It never executes discovery code or redistributes the complete MIB collection. Unsupported, dynamic and conflicting mappings are reported rather than guessed. Not every sensor is supported yet; each data tag contains a coverage report.
+The official pack imports definitions exclusively from LibreNMS. It automatically discovers supported YAML/PHP state tables, OS groups, shared hardware routes and inherited OS classes. Missing numeric OIDs can be resolved from official MIB files during generation. It never executes discovery code or redistributes the complete MIB collection. Unsupported, dynamic and conflicting mappings are reported and gated rather than guessed. Not every sensor is supported yet; each data tag contains a coverage report. See [import coverage](docs/IMPORT-COVERAGE.md) for the supported patterns and remaining boundaries.
 
 ## Updates and versions
 
@@ -23,6 +23,8 @@ The **Build LibreNMS releases** workflow checks the latest official stable relea
 Detection can take a day plus GitHub scheduling delays. Enabled apps receive activated data on their next sync, normally within 24 hours, or through **Update sensor definitions**. No app rebuild is needed for routine catalogue changes. Reader/schema changes may need an app update.
 
 Generated OS files live in release tags under `data/os/`, named by OS, such as `procurve.json.gz`. The `main` branch holds the generator and [active index](feeds/v1/stable.json). Release attachments contain the manifest and notices; OS files and coverage reports remain in the tag.
+
+Contextual readers use a separate v2 feed and `data/v2/os/`. Older readers keep receiving exact, unconditional mappings through v1. Both formats are generated from the same pinned source and promoted together; a rule is never stripped of its hardware or OID conditions to fit an older app.
 
 ## Build and development
 

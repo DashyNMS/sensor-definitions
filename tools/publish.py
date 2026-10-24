@@ -23,11 +23,19 @@ def main():
     manifest = json.loads((args.data / "manifest.json").read_text())
     if manifest["catalogueVersion"] != args.version:
         raise ValueError("Manifest version mismatch")
+    contextual_manifest = json.loads((args.data / "v2/manifest.json").read_text())
+    if contextual_manifest["catalogueVersion"] != args.version or contextual_manifest["schemaVersion"] != 2:
+        raise ValueError("Contextual manifest version/schema mismatch")
     lock_path = Path("sources/librenms.json")
     lock = json.loads(lock_path.read_text())
     coverage = json.loads((args.data / "coverage.json").read_text())
     if coverage["upstreamRevision"] != lock["revision"]:
         raise ValueError("Generated data does not match the pinned source revision")
+    contextual_coverage = json.loads((args.data / "v2/coverage.json").read_text())
+    if contextual_coverage["upstreamRevision"] != lock["revision"]:
+        raise ValueError("Contextual data does not match the pinned source revision")
+    if any(item.get("gate", {}).get("status") != "passed" for item in (coverage, contextual_coverage)):
+        raise ValueError("Unreviewed coverage cannot be published")
     repository = os.environ["GITHUB_REPOSITORY"]
     tag = "v" + args.version
     if subprocess.run(["git", "rev-parse", "--verify", "refs/tags/" + tag], capture_output=True).returncode == 0:
@@ -49,13 +57,14 @@ def main():
         run("git", "push", "origin", "refs/tags/" + tag, cwd=work)
         notes = Path(folder) / "notes.md"
         notes.write_text(f"Sensor state catalogue {args.version}: {coverage['definitions']} definitions for {coverage['systems']} systems.\n\n"
+                         f"Contextual readers: {contextual_coverage['definitions']} definitions for {contextual_coverage['systems']} systems.\n\n"
                          f"LibreNMS source: `{coverage['upstreamRevision']}`.\n\n"
                          "Data is split by device OS and downloaded on demand. Source notices are included in the tagged data and notices asset. "
                          "Unsupported and dynamic discovery cases are recorded in the CI coverage report.\n", encoding="utf-8")
         run("gh", "release", "create", tag, "--repo", repository, "--title", f"Sensor definitions {args.version}",
             "--notes-file", str(notes), str(args.data / "manifest.json"), str(args.data / "notices.txt"))
         run("git", "worktree", "remove", str(work))
-        print(f"Published {tag}. Submit artifacts/release/manifest.json as feeds/v1/stable.json in a reviewed PR.")
+        print(f"Published {tag}. Promote manifest.json and v2/manifest.json to their respective stable feeds in one reviewed PR.")
 
 
 if __name__ == "__main__":

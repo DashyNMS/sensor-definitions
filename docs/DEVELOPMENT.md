@@ -27,9 +27,15 @@ The structured PHP compiler uses pinned Tree-sitter bindings and never runs PHP 
 python tools/php_compiler.py --upstream .upstream --output artifacts/php-analysis.json
 ```
 
-This is an intermediate analysis report, not a publishable catalogue. It records candidate exact mappings, unresolved parameterised/conditional rules and omissions. It discovers OS/group/RFC1628 routes from upstream metadata and shared hardware routes from the discovery entry point, with no vendor filename registration. The legacy state directory is also analysed for unrouted files. Literal arrays, aliases, static loops, match defaults, switch cases and fluent Sensor/StateTranslation calls are supported within explicit syntax, step, nesting and value-size limits. Unknown calls remain symbolic; runtime labels and ambiguous tables are rejected.
+This is an intermediate analysis report, not a publishable catalogue. It records candidate exact mappings, symbolic parameterised/conditional rules and omissions. Production builds use the same compiler, preserving supported rules in schema 2. Routes come from OS/group/RFC1628 metadata, shared includes and declared OS class inheritance, with no vendor filename registration. The legacy state directory is also analysed for unrouted files. Literal arrays, aliases, static loops, match defaults, switch cases and fluent Sensor/StateTranslation calls are supported within explicit syntax, step, nesting and value-size limits. Unknown calls remain symbolic; runtime labels and ambiguous tables are rejected.
 
-Do not flatten conditional rules into unconditional v1 mappings. Reader/schema compatibility and remaining MIB/runtime identities must be resolved before this compiler replaces the published importer. Missing official definitions remain unresolved; the compiler does not invent meanings from device names or numeric values.
+Do not flatten conditional rules into unconditional v1 mappings. Production output contains compatible v1 files and contextual files under `v2/`. Missing official definitions remain unresolved; the compiler does not invent meanings from device names or numeric values.
+
+## Coverage review
+
+`sources/coverage-baseline.json` fingerprints the active catalogue's selectors, labels and severity and records reviewed source omission reasons. Normal builds reject lost/changed mappings and newly unsupported source patterns. A supported new module can therefore publish automatically; a new language/runtime dependency needs a reusable importer extension or an explicit reviewed baseline change.
+
+For investigation, add `--review-coverage` to a build. This writes diagnostics even when the gate needs review. Its output is marked `review-required` and the publisher refuses it. Inspect each source reason and semantic difference before editing the baseline; never update it blindly just to make CI pass. Preserve the prior active catalogue's fingerprints until a deliberate label/severity change is reviewed. The baseline contains public data fingerprints only, not customer readings.
 
 ## Security checks
 
@@ -52,7 +58,7 @@ The manual **Publish sensor definitions** workflow publishes separate catalogue 
 
 For a catalogue-only correction to LibreNMS 26.10.2, use `26.10.2+catalogue.1` and increase the correction number for later fixes. This keeps the upstream release identity and every published tag immutable, without reserving a future LibreNMS patch version. Readers must support correction versions before promoting one. Automated detection will not replace a correction with its uncorrected base release; a newer LibreNMS release still supersedes it.
 
-Tags contain `data/manifest.json`, `data/os/<OS>.json.gz`, `data/coverage.json` and `data/notices.txt`. Only the manifest and notices are release attachments. Clients construct tagged raw GitHub URLs; unchanged OS content retains its hash across versions.
+Tags contain `data/manifest.json`, `data/os/<OS>.json.gz`, `data/coverage.json`, `data/notices.txt` and corresponding schema-2 files under `data/v2/`. Only the compatible manifest and notices are release attachments. Manual corrections promote both manifests to `feeds/v1/stable.json` and `feeds/v2/stable.json` in one reviewed PR; upstream automation commits both together. Clients construct tagged raw GitHub URLs; unchanged OS content retains its hash across versions.
 
 ## Layout and standards
 

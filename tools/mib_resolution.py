@@ -12,6 +12,7 @@ from pysmi.parser.smi import parserFactory
 class MibResolver:
     def __init__(self, upstream):
         self.upstream = Path(upstream)
+        resolved_root = self.upstream.resolve()
         self.files = defaultdict(list)
         self.modules = {}
         self.cache = {}
@@ -20,6 +21,8 @@ class MibResolver:
         header = re.compile(rb"(?m)^[ \t]*([A-Za-z][A-Za-z0-9-]*)\s+DEFINITIONS\s*::=\s*BEGIN")
         for file in sorted((self.upstream / "mibs").rglob("*")):
             if file.is_file():
+                if not file.resolve().is_relative_to(resolved_root):
+                    raise ValueError("MIB source escapes the pinned checkout")
                 with file.open("rb") as stream:
                     match = header.search(stream.read(65536))
                 if match:

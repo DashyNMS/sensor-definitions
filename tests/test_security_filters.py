@@ -19,3 +19,10 @@ class SecurityFilterTests(unittest.TestCase):
         self.assertFalse(filters.is_catalogue_digest(pin, "tools/publish.py"))
         self.assertFalse(filters.is_catalogue_digest("not-a-declared-digest", "feeds/v1/stable.json"))
         self.assertFalse(filters.is_catalogue_digest(digest, "sources/librenms.json"))
+
+    def test_semantic_baseline_only_allows_its_declared_fingerprints(self):
+        baseline = json.loads((ROOT / "sources/coverage-baseline.json").read_text())
+        digest = next(iter(baseline["definitions"].values()))
+        self.assertTrue(filters.is_catalogue_digest(digest, "sources/coverage-baseline.json"))
+        self.assertFalse(filters.is_catalogue_digest(digest, "tools/coverage_gate.py"))
+        self.assertFalse(filters.is_catalogue_digest("1" * 64, "sources/coverage-baseline.json"))

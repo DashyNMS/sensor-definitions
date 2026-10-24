@@ -7,6 +7,8 @@ ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("catalogue", ROOT / "tools/catalogue.py")
 catalogue = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(catalogue)
+from php_compiler import compile_sources
+from context_rules import definition as rule_definition
 
 FIXTURE = """<?php
 $cur_oid = '.1.3.6.1.4.1.32473.1.';
@@ -40,8 +42,20 @@ class AxisTests(unittest.TestCase):
             file = root / "includes/discovery/sensors/state/axiscam.inc.php"
             file.parent.mkdir(parents=True)
             file.write_text(text)
+            detection = root / 'resources/definitions/os_detection/axiscam.yaml'
+            detection.parent.mkdir(parents=True)
+            detection.write_text('os: axiscam\n')
             report = []
-            return catalogue.import_axis(root, report), report
+            mappings, rules = compile_sources(root, report, catalogue.definition,
+                lambda value: catalogue.yaml.load(value, Loader=catalogue.UniqueLoader))
+            for rule in rules:
+                try:
+                    mapped = rule_definition(rule)
+                    if mapped:
+                        mappings.append(mapped)
+                except ValueError as error:
+                    report.append({'path': rule['path'], 'reason': str(error)})
+            return mappings, report
 
     def test_static_tables_preserve_separate_identities_and_severity(self):
         mappings, report = self.run_import(FIXTURE)
