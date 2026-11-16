@@ -1,7 +1,7 @@
 {
   "repository": "https://github.com/librenms/librenms",
-  "revision": "17387db6dcb86a5482c4a309b5378ded1c6df3b7",
-  "release": "26.10.2",
+  "revision": "49d74d08e636521ceeb4d78b672ddec2a5ea8fdb",
+  "release": "26.11.0",
   "licence": "GPL-3.0-or-later",
   "paths": [
     "resources/definitions/os_discovery",

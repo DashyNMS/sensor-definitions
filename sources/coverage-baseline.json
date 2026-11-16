@@ -1,5 +1,5 @@
 {
-  "catalogueVersion": "26.10.2+catalogue.1",
+  "catalogueVersion": "26.11.0",
   "definitions": {
     "acano/c3gGsmCurrentBand/1.3.6.1.4.1.9.9.661.1.3.4.1.1.3": "94f74100d259042ea7d96dfd180831862d9475016216bbf6366244f28d32b5f4",
     "acano/c3gGsmCurrentRoamingStatus/1.3.6.1.4.1.9.9.661.1.3.2.1.6": "780c9ed5dde053bef4eb2ecba958679ffdfa1c570553fc796dc3c64e0fe6e3c8",
@@ -1009,8 +1009,8 @@
     "gude-esb/esb7214Input/1.3.6.1.4.1.28507.67.1.5.6.2.1.2": "9e336d82267d5ad3547de2018564420914de83a04e4b31c369c87b779f56904d",
     "gude-esb/esb7214POE/1.3.6.1.4.1.28507.67.1.5.10": "f67cbbf452a37e00ce59b1c9954e4f30bef5b364c50d55a96d3d718028987550",
     "gude-esb/esb7214PortState/1.3.6.1.4.1.28507.67.1.3.1.2.1.3": "e3abf9c4678f35a4ecb9f251b0706929006d2937d0e4fee518b88089cea1fb4f",
-    "gwd/devFanAlarmStatus/1.3.6.1.4.1.10072.2.15.1.4.1.1.3": "f0500ecaf768511703a4afc2927d1ecf30149854a74bfbfe8f2427b693bf631c",
-    "gwd/powerRunStatus/1.3.6.1.4.1.10072.2.15.1.5.1.1.2": "f2c4345ca9e7ea4650951f80afe0752384e890f46594dad7d55517faa02b4de6",
+    "gwd/devFanAlarmStatus/1.3.6.1.4.1.10072.2.15.1.4.1.1.3": "3ba14710c249bb7086eb29d23d22eb7dc97983fa512b32efb6d9d4b2833a7301",
+    "gwd/powerRunStatus/1.3.6.1.4.1.10072.2.15.1.5.1.1.2": "8f6a635c8a53c9833210f1fd2dbe4e0d4c59c2944616f4cf36cfe3b26ee5f6a5",
     "harmony-enhanced/mwrEmcRadioLinkStatus/1.3.6.1.4.1.7262.4.5.12.202.1.1.11": "9366f3faf8469d0e22eff533725944c1bc411b028a1c4784688f5754a5d838d1",
     "hikvision-nvr/hikDiskStatus/1.3.6.1.4.1.50001.1.241.1.3": "731126678335f595b23f4e8584da235d57d057f2d709e729d4d1349e5978b8ae",
     "himoinsa-gensets/HimoinsaAlarmStatus/1.3.6.1.4.1.41809.1.46": "192dc94f403f162f60e9eff547e6f4f8a1659765422dd70b8e7f682e288ef6fc",
@@ -1544,7 +1544,6 @@
     "nokia-1830/tnUserInterfacePanelNodeMajorLEDColor/1.3.6.1.4.1.7483.2.2.5.3.2.1.3.1.12": "533e9f8f697c3ec437e34a42046632f882cb92c1f9e90614da981198afbda1f4",
     "nokia-1830/tnUserInterfacePanelNodeMinorLEDColor/1.3.6.1.4.1.7483.2.2.5.3.2.1.3.1.14": "83a4eac73d6f51d2b1188fbca5431f4c0def94d50af08ffa35767bd3799af19e",
     "nokia-1830/tnUserInterfacePanelNodeWarningLEDColor/1.3.6.1.4.1.7483.2.2.5.3.2.1.3.1.19": "8397ce8a6e3bf8536588ff6b76c9d70fb549f3d56dc992035cab9f1a760d64cd",
-    "nokia-isam/alarmCount/1.3.6.1.4.1.637.61.1.3.4": "89e63f935920e5026863f0b1cf5396a729021739a6d9a7fcf97a27b6ed00da08",
     "nokia-isam/alarmCurrentSeverityStatus/1.3.6.1.4.1.637.61.1.3.5": "e7bd30be7bf189d44c8b4098e4a53f7e0d9571afe679ff089783e4d70befc40b",
     "nokia-isam/fanMode/1.3.6.1.4.1.637.61.1.23.1.9": "a978f596279b99df9b45fee73850f107118415f1b95911a135ea556700056686",
     "nti/DigitalInputs/1.3.6.1.4.1.3699.1.1.12.1.3.1.1.3": "78684a762c14f6ed8be448b3d42dba561328d3476d3788fb3caf27821d37919d",
@@ -2513,6 +2512,7 @@
       "Duplicate state value"
     ],
     "resources/definitions/os_discovery/scalance.yaml": [
+      "No explicit sensor type",
       "Unsupported YAML: while parsing a flow node\nexpected the node content, but found ','\n  in \"<unicode string>\", line 148, column 52:\n     ...      - { value: 1, generic: 2,  , descr: 'notPresent' }\n                                         ^"
     ],
     "resources/definitions/os_discovery/supermicro-bmc.yaml": [
@@ -2528,5 +2528,5 @@
       "Duplicate state value"
     ]
   },
-  "upstreamRevision": "17387db6dcb86a5482c4a309b5378ded1c6df3b7"
+  "upstreamRevision": "49d74d08e636521ceeb4d78b672ddec2a5ea8fdb"
 }
