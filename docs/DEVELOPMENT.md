@@ -46,15 +46,35 @@ python -m pip install -r requirements-security.txt
 python tools/security_check.py
 ```
 
-This audits both requirements files for known vulnerabilities, runs Bandit on `tools/` with a medium/high severity gate, and scans tracked files for potential secrets. Reports go to ignored `artifacts/security/`. CodeQL analyses Python and GitHub Actions on PRs, main pushes, weekly and manual runs.
+This audits both requirements files for known vulnerabilities, runs Bandit on `tools/` with a medium/high severity gate, and scans tracked files for potential secrets. Reports go to ignored `artifacts/security/`. CodeQL analyses Python and GitHub Actions on PRs, main pushes and weekly.
 
 Dependabot checks pinned requirements and action SHAs weekly. Review subprocess findings in context: invoke fixed Git/GitHub CLI executables with validated argument arrays, never a shell or upstream script. Keep publication contents-write permission scoped to jobs that need it; detection/validation use read-only permissions. Do not enable workflow PR review/approval permissions. Keep credentials and customer details out of logs, fixtures and commits. See [SECURITY.md](../SECURITY.md) for private reporting.
 
 ## Publish
 
-The **Build LibreNMS releases** workflow detects the latest official stable release daily at 08:23 UTC or by manual dispatch. It resolves the tag to a commit, tests and builds twice on all three platforms, then publishes the matching version. The data tag retains its exact source lock. Feed activation is automatic, refuses downgrades/conflicting manifests and uses a normal fast-forward push. If activation fails after publication, the next run retries it. Versions are never overwritten.
+| Workflow | When |
+| --- | --- |
+| **CI** (`ci.yml`) | every pull request, and in every edge and nightly build |
+| **Edge build** (`edge-build.yml`) | every commit to `main`: a tag and prerelease, `<LibreNMS release>-edge.<build>`, with the catalogue as one archive |
+| **Nightly build** (`nightly-build.yml`) | 00:00 UTC (GitHub may start it late) if `main` changed since the last nightly, or by hand: the same, as `<LibreNMS release>-nightly.<build>` |
+| **LibreNMS release** (`librenms-release.yml`) | daily, when LibreNMS has released; publishes and activates |
+| **Release build** (`release-build.yml`) | by hand, for a catalogue-only correction |
+| **CodeQL** (`codeql.yml`) | pull requests, `main` and weekly |
 
-The manual **Publish sensor definitions** workflow publishes separate catalogue versions from the current pinned input. Promote its released manifest to `feeds/v1/stable.json` through a reviewed PR after checks pass.
+They share `catalogue.yml`, which tests and builds twice on each platform. Names match the other DashyNMS repositories, and `CI result` is the required check. Edge and nightly builds never reach the live feed, so no app uses them. Releases differ from the other repositories: they aren't started by pushing a tag, because a release's tag holds the data its build generates, and its version is LibreNMS's.
+
+### Release notes
+
+`docs/releases/next.md` is the notes for whatever catalogue comes next, because its version is LibreNMS's to choose. Nothing else is written by hand.
+
+- **In the pull request that makes the change:** if it alters what people see (a label, a status, coverage, a schema, how data is fetched), add or update its line under `## Breaking`, `## New`, `## Changed` or `## Fixed`: `- **What it's about:** what's different now, in plain words (#NN).` Other headings fail CI. `ci`, `test`, `docs`, `chore` and dependency updates have no line.
+- Say what's true of the next catalogue as a whole: edit a line rather than adding another that undoes it. A breaking change says what readers have to do.
+- **Nightly:** a copy of the notes, with a link to what changed since the last one. **Edge:** the link only.
+- **A release:** the notes above the generated summary. Activating it moves them to `docs/releases/<version>.md`, and leaves in `next.md` only what was added after it was published. A release with no changes of ours has only the summary. After a manual correction, rename it in the pull request that promotes the feed. Never edit a released version's file.
+
+The **LibreNMS release** workflow detects the latest official stable release daily at 08:23 UTC or by manual dispatch. It resolves the tag to a commit, tests and builds twice on all three platforms, then publishes the matching version. The data tag retains its exact source lock. Feed activation is automatic, refuses downgrades/conflicting manifests and uses a normal fast-forward push. If activation fails after publication, the next run retries it. Versions are never overwritten.
+
+The manual **Release build** workflow publishes separate catalogue versions from the current pinned input. Promote its released manifest to `feeds/v1/stable.json` through a reviewed PR after checks pass.
 
 For a catalogue-only correction to LibreNMS 26.10.2, use `26.10.2+catalogue.1` and increase the correction number for later fixes. This keeps the upstream release identity and every published tag immutable, without reserving a future LibreNMS patch version. Readers must support correction versions before promoting one. Automated detection will not replace a correction with its uncorrected base release; a newer LibreNMS release still supersedes it.
 
@@ -67,4 +87,4 @@ Tags contain `data/manifest.json`, `data/os/<OS>.json.gz`, `data/coverage.json`,
 - `sources/`: pinned input/provenance; `feeds/`: active index; `docs/`: design and development.
 - `.upstream/`, `.deps/`, `artifacts/`: ignored local inputs, dependencies and output.
 
-Follow [CONTRIBUTING.md](../CONTRIBUTING.md) and [CLAUDE.md](../CLAUDE.md): one issue per PR, squash-merge, `type(scope): lower-case user-visible result`, `Closes #NN` first in the PR body, no issue numbers or attribution in titles. Original code/documentation is MIT; derived data retains its upstream notices under [NOTICE.md](../NOTICE.md).
+Follow [CONTRIBUTING.md](../CONTRIBUTING.md) and [CLAUDE.md](../CLAUDE.md): one issue per PR, squash-merge, `type(scope): lower-case user-visible result`, `Closes #NN` first in the PR body, no issue numbers or attribution in titles. Original code/documentation is MIT; derived data retains its upstream notices under [NOTICES.md](../NOTICES.md).

@@ -6,6 +6,8 @@ import re
 import subprocess
 import tempfile
 
+import release_notes
+
 
 def run(*args, cwd=None):
     return subprocess.check_output(args, cwd=cwd, text=True).strip()
@@ -75,6 +77,9 @@ def main():
                 feed.parent.mkdir(parents=True, exist_ok=True)
                 feed.write_text(json.dumps(content, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
                 run("git", "add", f"feeds/v{schema}/stable.json", cwd=work)
+            published = subprocess.run(["git", "show", tag + ":" + release_notes.NEXT], capture_output=True, text=True)
+            if published.returncode == 0 and release_notes.archive(work, args.version, published.stdout):
+                run("git", "add", "docs/releases", cwd=work)
             run("git", "commit", "-m", "build(updates): activate LibreNMS " + args.version + " definitions", cwd=work)
             # No force push: a concurrent main change causes a retryable failure.
             run("git", "push", "origin", "HEAD:refs/heads/main", cwd=work)

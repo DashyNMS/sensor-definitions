@@ -9,6 +9,7 @@ Python generator and independently updated state catalogue shared by DashyNMS Co
 - Types: `feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `build`, `ci`, `chore`, `revert`. Scopes: `definitions`, `import`, `schema`, `updates`, `docs`, `security`.
 - Start in lower case; no full stop, under about 72 characters. No issue numbers in titles. PR bodies start with `Closes #NN` and explain behaviour, provenance and validation.
 - Issue titles follow the same standard, describing the result. Reader/schema breaking changes use `!` and explain consumer migration.
+- Release notes: a change people would see adds or updates its line in `docs/releases/next.md` in the same PR. Never write a GitHub release's notes by hand. Read [Release notes](docs/DEVELOPMENT.md#release-notes) first.
 - No AI attribution or co-author lines. Use British spelling and synthetic/documentation network fixtures.
 
 ## Import and release rules

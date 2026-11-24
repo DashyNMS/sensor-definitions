@@ -1,0 +1,93 @@
+name: LibreNMS release
+
+# Daily: publishes and activates the catalogue for a new official LibreNMS
+# release. Releases follow LibreNMS's versions rather than this
+# repository's own, so they aren't started from a tag here.
+on:
+  schedule:
+    - cron: "23 8 * * *"
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Stable LibreNMS version; leave blank for the latest"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-catalogue
+  cancel-in-progress: false
+
+jobs:
+  detect:
+    name: Find the release
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.release.outputs.publish }}
+      version: ${{ steps.release.outputs.version }}
+      revision: ${{ steps.release.outputs.revision }}
+      action: ${{ steps.release.outputs.action }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Find an unpublished stable release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_RELEASE: ${{ inputs.release }}
+        run: python tools/upstream_release.py --release "$REQUESTED_RELEASE"
+
+  catalogue:
+    name: Catalogue
+    needs: detect
+    if: needs.detect.outputs.action == 'build'
+    uses: ./.github/workflows/catalogue.yml
+    with:
+      version: ${{ needs.detect.outputs.version }}
+      revision: ${{ needs.detect.outputs.revision }}
+      retention: 30
+
+  publish:
+    name: Publish and activate
+    needs: [detect, catalogue]
+    if: always() && needs.detect.result == 'success' && (needs.catalogue.result == 'success' || needs.detect.outputs.action == 'promote')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: needs.detect.outputs.action == 'build'
+        with:
+          name: catalogue-ubuntu-latest
+          path: artifacts/release
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: needs.detect.outputs.action == 'build'
+        with:
+          name: source-lock
+          path: sources
+      - name: Publish immutable release
+        if: needs.detect.outputs.action == 'build'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CATALOGUE_VERSION: ${{ needs.detect.outputs.version }}
+        run: python tools/publish.py --version "$CATALOGUE_VERSION" --data artifacts/release
+      - name: Activate the catalogue for enabled apps
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CATALOGUE_VERSION: ${{ needs.detect.outputs.version }}
+          SOURCE_REVISION: ${{ needs.detect.outputs.revision }}
+        run: |
+          python tools/promote.py --version "$CATALOGUE_VERSION" --revision "$SOURCE_REVISION"
+          echo "Activated catalogue v$CATALOGUE_VERSION from the matching LibreNMS release. Enabled apps receive it on their next sync." >> "$GITHUB_STEP_SUMMARY"

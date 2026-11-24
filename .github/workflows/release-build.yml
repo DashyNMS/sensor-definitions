@@ -1,0 +1,52 @@
+name: Release build
+
+# A catalogue release from the pinned source, such as a correction to one
+# already published. By hand: the release's tag holds the generated data, so
+# the build has to create it. Official LibreNMS releases are published by
+# librenms-release.yml.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Catalogue version, for example 26.11.0+catalogue.1"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-catalogue
+  cancel-in-progress: false
+
+jobs:
+  catalogue:
+    name: Catalogue
+    if: github.repository == 'DashyNMS/sensor-definitions' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/catalogue.yml
+    with:
+      version: ${{ inputs.version }}
+      retention: 30
+
+  publish:
+    name: Publish
+    needs: catalogue
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: catalogue-ubuntu-latest
+          path: artifacts/release
+      - name: Publish immutable data
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CATALOGUE_VERSION: ${{ inputs.version }}
+        run: python tools/publish.py --version "$CATALOGUE_VERSION" --data artifacts/release

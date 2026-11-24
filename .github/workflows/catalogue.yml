@@ -1,36 +1,77 @@
-name: Validate catalogue
+name: Catalogue
+
+# Tests the generator and builds the catalogue twice on each platform, from
+# the pinned LibreNMS source or the release given. Called by CI and by
+# everything that publishes.
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  workflow_call:
+    inputs:
+      version:
+        description: Catalogue version (blank uses the pinned LibreNMS release)
+        type: string
+        default: ""
+      revision:
+        description: LibreNMS commit to pin instead of the one in sources/librenms.json, with version as its release
+        type: string
+        default: ""
+      name:
+        description: What to call the artifacts; each ends in its platform
+        type: string
+        default: catalogue
+      retention:
+        type: number
+        default: 14
+
 permissions:
   contents: read
+
 jobs:
-  validate:
+  build:
+    name: Build (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: '3.12'
+          python-version: "3.12"
       - run: python -m pip install -r requirements.txt
-      - run: python -m unittest discover -s tests -v
-      - name: Read pinned revision
-        id: upstream
+      - name: Test
+        run: python -m unittest discover -s tests -v
+      - name: Pin the source
+        id: source
         shell: bash
-        run: echo "revision=$(python -c "import json; print(json.load(open('sources/librenms.json'))['revision'])")" >> "$GITHUB_OUTPUT"
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        env:
+          VERSION: ${{ inputs.version }}
+          REVISION: ${{ inputs.revision }}
+        run: |
+          python - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          version, revision = os.environ['VERSION'], os.environ['REVISION']
+          if not re.fullmatch(r'(\d+\.\d+\.\d+(\+catalogue\.[1-9]\d*)?)?', version) or not re.fullmatch(r'([0-9a-f]{40})?', revision):
+              raise SystemExit('The version or revision is invalid.')
+          if revision and not version:
+              raise SystemExit('A revision needs the version it is the release of.')
+          path = Path('sources/librenms.json')
+          lock = json.loads(path.read_text())
+          if os.environ['REVISION']:
+              lock.update(revision=os.environ['REVISION'], release=os.environ['VERSION'])
+              path.write_text(json.dumps(lock, indent=2) + '\n', encoding='utf-8', newline='\n')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              print('revision=' + lock['revision'], file=output)
+              print('version=' + (os.environ['VERSION'] or lock['release']), file=output)
+          PY
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: librenms/librenms
           persist-credentials: false
-          ref: ${{ steps.upstream.outputs.revision }}
+          ref: ${{ steps.source.outputs.revision }}
           path: .upstream
           sparse-checkout: |
             resources/definitions/os_discovery
@@ -43,12 +84,24 @@ jobs:
             mibs
             LICENSE.txt
           sparse-checkout-cone-mode: false
-      - run: python tools/catalogue.py build --upstream .upstream --version 1.0.0 --output artifacts/first
-      - run: python tools/catalogue.py build --upstream .upstream --version 1.0.0 --output artifacts/second
-      - name: Verify deterministic shards
-        run: python -c "from pathlib import Path; a=Path('artifacts/first'); b=Path('artifacts/second'); assert all(p.read_bytes()==(b/p.relative_to(a)).read_bytes() for p in a.rglob('*') if p.is_file())"
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+      - name: Build twice and compare
+        shell: bash
+        env:
+          VERSION: ${{ steps.source.outputs.version }}
+        run: |
+          python tools/catalogue.py build --upstream .upstream --version "$VERSION" --output artifacts/first
+          python tools/catalogue.py build --upstream .upstream --version "$VERSION" --output artifacts/second
+          python -c "from pathlib import Path; a=Path('artifacts/first'); b=Path('artifacts/second'); assert all(p.read_bytes()==(b/p.relative_to(a)).read_bytes() for p in a.rglob('*') if p.is_file())"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: catalogue-${{ matrix.os }}
+          name: ${{ inputs.name }}-${{ matrix.os }}
           path: artifacts/first
-          retention-days: 14
+          if-no-files-found: error
+          retention-days: ${{ inputs.retention }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: inputs.revision != '' && matrix.os == 'ubuntu-latest'
+        with:
+          name: source-lock
+          path: sources/librenms.json
+          if-no-files-found: error
+          retention-days: ${{ inputs.retention }}
