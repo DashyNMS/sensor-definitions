@@ -1,28 +1,36 @@
 name: CodeQL
+
 on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
   schedule:
-    - cron: '17 3 * * 1'
-  workflow_dispatch:
+    # 03:17 UTC every Monday: off-peak, and deliberately not on the hour.
+    - cron: "17 3 * * 1"
+
 permissions:
   contents: read
+
 jobs:
   analyze:
+    name: Analyze (${{ matrix.language }})
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, actions]
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      actions: read
       security-events: write
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: github/codeql-action/init@1fc58d04a4d4374f921bdac573c3811c240f9c26 # v4
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
-          languages: python,actions
+          languages: ${{ matrix.language }}
           build-mode: none
           queries: security-extended
-      - uses: github/codeql-action/analyze@1fc58d04a4d4374f921bdac573c3811c240f9c26 # v4
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          category: "/language:${{ matrix.language }}"

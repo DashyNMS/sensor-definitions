@@ -1,0 +1,55 @@
+name: CI
+
+# Every pull request, and every edge build. "CI result" is the required check.
+on:
+  pull_request:
+  workflow_call:
+    inputs:
+      name:
+        description: What to call the catalogue artifacts
+        type: string
+        default: catalogue
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  catalogue:
+    name: Catalogue
+    uses: ./.github/workflows/catalogue.yml
+    with:
+      name: ${{ inputs.name || 'catalogue' }}
+
+  security:
+    name: Security checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r requirements-security.txt
+      - run: python tools/security_check.py
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: security-check-reports
+          path: artifacts/security
+          retention-days: 14
+
+  result:
+    name: CI result
+    if: always()
+    needs: [catalogue, security]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every job
+        env:
+          FAILED: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: test "$FAILED" = false

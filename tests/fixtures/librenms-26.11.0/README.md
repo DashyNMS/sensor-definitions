@@ -1,6 +1,6 @@
 # LibreNMS 26.11.0 review fixtures
 
-These YAML files are unmodified copies of `resources/definitions/os_discovery/{gwd,nokia-isam,scalance}.yaml` from official LibreNMS commit `49d74d08e636521ceeb4d78b672ddec2a5ea8fdb`. They retain LibreNMS's GPL-3.0-or-later licence. See the repository's NOTICE.md.
+These YAML files are unmodified copies of `resources/definitions/os_discovery/{gwd,nokia-isam,scalance}.yaml` from official LibreNMS commit `49d74d08e636521ceeb4d78b672ddec2a5ea8fdb`. They retain LibreNMS's GPL-3.0-or-later licence. See the repository's NOTICES.md.
 
 GWD corrects powerRunStatus to Empty=1/warning, Power Off=2/critical and Power On=3/ok, and devFanAlarmStatus to Alarm=1/critical and Normal=5/ok. The explicit LibreNMS tables supply both labels and severity.
 

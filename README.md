@@ -18,7 +18,7 @@ The official pack imports definitions exclusively from LibreNMS. It automaticall
 
 ## Updates and versions
 
-The **Build LibreNMS releases** workflow checks the latest official stable release daily at 08:23 UTC. LibreNMS `26.10.2`, for example, produces catalogue `v26.10.2` from its exact commit. After tests and deterministic builds pass on Windows, macOS and Linux, publication and stable-feed activation happen automatically.
+The **LibreNMS release** workflow checks the latest official stable release daily at 08:23 UTC. LibreNMS `26.10.2`, for example, produces catalogue `v26.10.2` from its exact commit. After tests and deterministic builds pass on Windows, macOS and Linux, publication and stable-feed activation happen automatically.
 
 Detection can take a day plus GitHub scheduling delays. Enabled apps receive activated data on their next sync, normally within 24 hours, or through **Update sensor definitions**. No app rebuild is needed for routine catalogue changes. Reader/schema changes may need an app update.
 
@@ -47,4 +47,4 @@ Use one issue per PR into `main`, then squash-merge. Titles follow `type(scope):
 ---
 
 <sub>DashyNMS is not affiliated with LibreNMS or the vendors represented in the catalogue.<br>
-Original generator code, schemas, tests and documentation use the MIT licence: see [LICENSE](LICENSE). LibreNMS-derived data retains its GPL-3.0-or-later terms and notices: see [NOTICE.md](NOTICE.md).</sub>
+Original generator code, schemas, tests and documentation use the MIT licence: see [LICENSE](LICENSE). LibreNMS-derived data retains its GPL-3.0-or-later terms and notices: see [NOTICES.md](NOTICES.md).</sub>
