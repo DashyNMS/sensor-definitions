@@ -8,6 +8,8 @@ import shutil
 import subprocess
 import tempfile
 
+import release_notes
+
 
 def run(*args, cwd=None):
     return subprocess.check_output(args, cwd=cwd, text=True).strip()
@@ -51,16 +53,19 @@ def main():
         # Scheduled builds resolve a release rather than main's research pin.
         # The immutable tag must retain that exact source lock for reproduction.
         shutil.copyfile(lock_path, work / "sources/librenms.json")
+        # Before anything is published, so bad notes can't leave a tag without a release.
+        summary = (f"Sensor state catalogue {args.version}: {coverage['definitions']} definitions for {coverage['systems']} systems.\n\n"
+                   f"Contextual readers: {contextual_coverage['definitions']} definitions for {contextual_coverage['systems']} systems.\n\n"
+                   f"LibreNMS source: `{coverage['upstreamRevision']}`.\n\n"
+                   "Data is split by device OS and downloaded on demand. Source notices are included in the tagged data and notices asset. "
+                   "Unsupported and dynamic discovery cases are recorded in the CI coverage report.\n")
+        text = release_notes.with_notes((work / release_notes.NEXT).read_text(encoding="utf-8"), summary)
         run("git", "add", "data", "sources/librenms.json", cwd=work)
         run("git", "commit", "-m", f"build(definitions): publish catalogue {args.version}", cwd=work)
         run("git", "tag", tag, cwd=work)
         run("git", "push", "origin", "refs/tags/" + tag, cwd=work)
         notes = Path(folder) / "notes.md"
-        notes.write_text(f"Sensor state catalogue {args.version}: {coverage['definitions']} definitions for {coverage['systems']} systems.\n\n"
-                         f"Contextual readers: {contextual_coverage['definitions']} definitions for {contextual_coverage['systems']} systems.\n\n"
-                         f"LibreNMS source: `{coverage['upstreamRevision']}`.\n\n"
-                         "Data is split by device OS and downloaded on demand. Source notices are included in the tagged data and notices asset. "
-                         "Unsupported and dynamic discovery cases are recorded in the CI coverage report.\n", encoding="utf-8")
+        notes.write_text(text, encoding="utf-8")
         run("gh", "release", "create", tag, "--repo", repository, "--title", f"Sensor definitions {args.version}",
             "--notes-file", str(notes), str(args.data / "manifest.json"), str(args.data / "notices.txt"))
         run("git", "worktree", "remove", str(work))

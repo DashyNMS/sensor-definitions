@@ -12,6 +12,8 @@ Each mapping change must identify its source and include a fixture proving the n
 
 CI validates schemas, duplicate or ambiguous selectors, state values, provenance and OIDs. Conflicting or unsupported discovery mappings are omitted and reported in coverage, not guessed. Run the importer tests and security checks in [the developer guide](docs/DEVELOPMENT.md) before opening a PR. Report vulnerabilities privately under [SECURITY.md](SECURITY.md).
 
+A change people would see adds its line to `docs/releases/next.md` (see [Release notes](docs/DEVELOPMENT.md#release-notes)).
+
 Treat data releases as user-visible behaviour changes. Review label and severity corrections, publish immutable catalogue versions, and document changed coverage. A data repository must never ship instructions or scripts that client applications execute.
 
 The approved upstream-release automation is the exception to manual feed PRs: an official stable LibreNMS release is pinned, validated on all three platforms, published under the matching version, and activated automatically. Changes to the importer, workflows and catalogue-specific corrections still follow the normal issue and PR review process. Do not overwrite published versions or force-push feed updates.

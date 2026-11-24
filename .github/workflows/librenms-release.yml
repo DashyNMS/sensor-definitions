@@ -1,8 +1,8 @@
 name: LibreNMS release
 
 # Daily: publishes and activates the catalogue for a new official LibreNMS
-# release. This repository's nightly and release builds in one, because the
-# catalogue follows LibreNMS's versions rather than its own.
+# release. Releases follow LibreNMS's versions rather than this
+# repository's own, so they aren't started from a tag here.
 on:
   schedule:
     - cron: "23 8 * * *"
