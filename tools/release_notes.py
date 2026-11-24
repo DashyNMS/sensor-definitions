@@ -16,7 +16,7 @@ BLANK = ("Notes for the next catalogue. When a change alters what people see, ad
 
 
 def sections(text):
-    """The headings and their changes, or nothing when there are no changes to tell people about."""
+    """The headings and their changes, each with its continuation lines; nothing when there are none to tell people about."""
     found = {}
     current = None
     for line in text.splitlines():
@@ -25,12 +25,16 @@ def sections(text):
             if current not in HEADINGS:
                 raise ValueError(f"{NEXT} has the heading {current!r}. Use {', '.join(HEADINGS)}.")
             found.setdefault(current, [])
-        elif current is not None and line.strip():
+        elif current is not None and line.startswith("- "):
             found[current].append(line)
+        elif current is not None and line.strip():
+            if not found[current]:
+                raise ValueError(f"{NEXT} has text under {current} that isn't a change.")
+            found[current][-1] += "\n" + line
         elif line.startswith("- "):
             raise ValueError(f"{NEXT} has a change that isn't under a heading.")
-    for heading, lines in found.items():
-        if not any(line.startswith("- ") for line in lines):
+    for heading, changes in found.items():
+        if not changes:
             raise ValueError(f"{NEXT} has no changes under {heading}.")
     return found
 
@@ -54,8 +58,8 @@ def archive(root, version, published):
     path = Path(root) / NEXT
     if not notes or not path.is_file():
         return False
-    kept = {heading: [line for line in lines if line not in notes.get(heading, [])]
-            for heading, lines in sections(path.read_text(encoding="utf-8")).items()}
+    kept = {heading: [change for change in changes if change not in notes.get(heading, [])]
+            for heading, changes in sections(path.read_text(encoding="utf-8")).items()}
     later = render(kept)
     (path.parent / f"{version}.md").write_text(render(notes), encoding="utf-8", newline="\n")
     path.write_text(BLANK + (f"\n{later}" if later else ""), encoding="utf-8", newline="\n")

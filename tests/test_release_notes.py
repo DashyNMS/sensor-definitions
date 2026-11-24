@@ -26,7 +26,7 @@ class ReleaseNotesTests(unittest.TestCase):
         self.assertTrue(text.endswith("---\n\nsummary\n"))
 
     def test_mistakes_are_refused(self):
-        for text in ("## Improved\n\n- No.\n", "- Loose.\n", "## New\n", "## New\n\n## Fixed\n\n- One.\n", "- Loose.\n## New\n\n- One.\n"):
+        for text in ("## Improved\n\n- No.\n", "- Loose.\n", "## New\n", "## New\n\n## Fixed\n\n- One.\n", "- Loose.\n## New\n\n- One.\n", "## New\n\nProse.\n- One.\n"):
             with self.assertRaises(ValueError):
                 release_notes.pending(text)
 
@@ -56,6 +56,13 @@ class ReleaseNotesTests(unittest.TestCase):
         self.assertIn("## New\n\n- **Pumps.**", left)
         self.assertIn("## Fixed\n\n- **Doors.**", left)
         release_notes.pending(left)
+
+    def test_a_change_reworded_after_publishing_is_kept_whole(self):
+        before = "## Fixed\n\n- **Fans.** Named again.\n  On some devices.\n"
+        after = "## Fixed\n\n- **Fans.** Named again.\n  On every device.\n"
+        _, kept, left = self.archive(after, before)
+        self.assertEqual(before, kept)
+        self.assertTrue(left.endswith(after))
 
     def test_nothing_is_kept_for_a_catalogue_with_no_changes_of_ours(self):
         self.assertEqual((False, None, CHANGES), self.archive(CHANGES, release_notes.BLANK))

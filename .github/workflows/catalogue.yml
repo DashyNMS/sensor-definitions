@@ -56,6 +56,8 @@ jobs:
           version, revision = os.environ['VERSION'], os.environ['REVISION']
           if not re.fullmatch(r'(\d+\.\d+\.\d+(\+catalogue\.[1-9]\d*)?)?', version) or not re.fullmatch(r'([0-9a-f]{40})?', revision):
               raise SystemExit('The version or revision is invalid.')
+          if revision and not version:
+              raise SystemExit('A revision needs the version it is the release of.')
           path = Path('sources/librenms.json')
           lock = json.loads(path.read_text())
           if os.environ['REVISION']:
