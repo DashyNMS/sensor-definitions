@@ -51,8 +51,11 @@ jobs:
           REVISION: ${{ inputs.revision }}
         run: |
           python - <<'PY'
-          import json, os
+          import json, os, re
           from pathlib import Path
+          version, revision = os.environ['VERSION'], os.environ['REVISION']
+          if not re.fullmatch(r'(\d+\.\d+\.\d+(\+catalogue\.[1-9]\d*)?)?', version) or not re.fullmatch(r'([0-9a-f]{40})?', revision):
+              raise SystemExit('The version or revision is invalid.')
           path = Path('sources/librenms.json')
           lock = json.loads(path.read_text())
           if os.environ['REVISION']:

@@ -26,20 +26,39 @@ class ReleaseNotesTests(unittest.TestCase):
         self.assertTrue(text.endswith("---\n\nsummary\n"))
 
     def test_mistakes_are_refused(self):
-        for text in ("## Improved\n\n- No.\n", "- Loose.\n", "## New\n"):
+        for text in ("## Improved\n\n- No.\n", "- Loose.\n", "## New\n", "## New\n\n## Fixed\n\n- One.\n", "- Loose.\n## New\n\n- One.\n"):
             with self.assertRaises(ValueError):
                 release_notes.pending(text)
 
+    def test_the_instructions_are_never_published(self):
+        text = release_notes.with_notes(release_notes.BLANK + "\n## Fixed\n\n- **Fans.** Named again (#1).\n", "summary\n")
+        self.assertEqual("## Fixed\n\n- **Fans.** Named again (#1).\n\n---\n\nsummary\n", text)
+
+    def archive(self, now, published):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        path = Path(folder.name) / release_notes.NEXT
+        path.parent.mkdir(parents=True)
+        path.write_text(now, encoding="utf-8", newline="\n")
+        done = release_notes.archive(folder.name, "26.12.0", published)
+        kept = path.parent / "26.12.0.md"
+        return done, kept.read_text(encoding="utf-8") if kept.exists() else None, path.read_text(encoding="utf-8")
+
     def test_published_notes_take_their_version_and_the_next_start_blank(self):
-        with tempfile.TemporaryDirectory() as folder:
-            path = Path(folder) / release_notes.NEXT
-            path.parent.mkdir(parents=True)
-            path.write_text(CHANGES, encoding="utf-8", newline="\n")
-            self.assertFalse(release_notes.archive(folder, "26.12.0", "something older\n"))
-            self.assertTrue(release_notes.archive(folder, "26.12.0", CHANGES))
-            self.assertEqual("## Fixed\n\n- **Fans.** Named again (#1).\n", (path.parent / "26.12.0.md").read_text(encoding="utf-8"))
-            self.assertEqual(release_notes.BLANK, path.read_text(encoding="utf-8"))
-            self.assertFalse(release_notes.archive(folder, "26.12.1", release_notes.BLANK))
+        self.assertEqual((True, "## Fixed\n\n- **Fans.** Named again (#1).\n", release_notes.BLANK), self.archive(CHANGES, CHANGES))
+
+    def test_a_change_added_after_publishing_waits_for_the_next_catalogue(self):
+        later = CHANGES + "- **Doors.** Named too (#2).\n\n## New\n\n- **Pumps.** Added (#3).\n"
+        done, kept, left = self.archive(later, CHANGES)
+        self.assertTrue(done)
+        self.assertNotIn("Doors", kept)
+        self.assertNotIn("Fans", left)
+        self.assertIn("## New\n\n- **Pumps.**", left)
+        self.assertIn("## Fixed\n\n- **Doors.**", left)
+        release_notes.pending(left)
+
+    def test_nothing_is_kept_for_a_catalogue_with_no_changes_of_ours(self):
+        self.assertEqual((False, None, CHANGES), self.archive(CHANGES, release_notes.BLANK))
 
 
 class BuildVersionTests(unittest.TestCase):

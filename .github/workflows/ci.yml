@@ -52,8 +52,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # Only success counts: a job no runner ever took is neither a failure nor
-      # cancelled here. A pull request runs every job; a build that calls this
-      # may skip the ones it does itself.
+      # cancelled here. The same gate as the other DashyNMS repositories.
       - name: Require every job
         env:
           RESULTS: ${{ toJSON(needs) }}

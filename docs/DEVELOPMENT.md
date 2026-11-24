@@ -54,7 +54,7 @@ Dependabot checks pinned requirements and action SHAs weekly. Review subprocess 
 
 | Workflow | When |
 | --- | --- |
-| **CI** (`ci.yml`) | every pull request, and in every edge build |
+| **CI** (`ci.yml`) | every pull request, and in every edge and nightly build |
 | **Edge build** (`edge-build.yml`) | every commit to `main`: a tag and prerelease, `<LibreNMS release>-edge.<build>`, with the catalogue as one archive |
 | **Nightly build** (`nightly-build.yml`) | 00:00 UTC (GitHub may start it late) if `main` changed since the last nightly, or by hand: the same, as `<LibreNMS release>-nightly.<build>` |
 | **LibreNMS release** (`librenms-release.yml`) | daily, when LibreNMS has released; publishes and activates |
@@ -70,7 +70,7 @@ They share `catalogue.yml`, which tests and builds twice on each platform. Names
 - **In the pull request that makes the change:** if it alters what people see (a label, a status, coverage, a schema, how data is fetched), add or update its line under `## Breaking`, `## New`, `## Changed` or `## Fixed`: `- **What it's about:** what's different now, in plain words (#NN).` Other headings fail CI. `ci`, `test`, `docs`, `chore` and dependency updates have no line.
 - Say what's true of the next catalogue as a whole: edit a line rather than adding another that undoes it. A breaking change says what readers have to do.
 - **Nightly:** a copy of the notes, with a link to what changed since the last one. **Edge:** the link only.
-- **A release:** the notes above the generated summary. Activating it renames `next.md` to `docs/releases/<version>.md` and starts a blank one. A release with no changes of ours has only the summary. After a manual correction, rename it in the pull request that promotes the feed. Never edit a released version's file.
+- **A release:** the notes above the generated summary. Activating it moves them to `docs/releases/<version>.md`, and leaves in `next.md` only what was added after it was published. A release with no changes of ours has only the summary. After a manual correction, rename it in the pull request that promotes the feed. Never edit a released version's file.
 
 The **LibreNMS release** workflow detects the latest official stable release daily at 08:23 UTC or by manual dispatch. It resolves the tag to a commit, tests and builds twice on all three platforms, then publishes the matching version. The data tag retains its exact source lock. Feed activation is automatic, refuses downgrades/conflicting manifests and uses a normal fast-forward push. If activation fails after publication, the next run retries it. Versions are never overwritten.
 

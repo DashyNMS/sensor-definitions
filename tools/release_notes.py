@@ -11,23 +11,36 @@ import sys
 
 HEADINGS = ("Breaking", "New", "Changed", "Fixed")
 NEXT = "docs/releases/next.md"
-BLANK = ("Notes for the next catalogue. Add a line under ## Breaking, ## New, ## Changed or ## Fixed "
-         "when a change alters what people see.\n")
+BLANK = ("Notes for the next catalogue. When a change alters what people see, add a line for it under a "
+         "Breaking, New, Changed or Fixed heading.\n")
+
+
+def sections(text):
+    """The headings and their changes, or nothing when there are no changes to tell people about."""
+    found = {}
+    current = None
+    for line in text.splitlines():
+        if line.startswith("## "):
+            current = line[3:].strip()
+            if current not in HEADINGS:
+                raise ValueError(f"{NEXT} has the heading {current!r}. Use {', '.join(HEADINGS)}.")
+            found.setdefault(current, [])
+        elif current is not None and line.strip():
+            found[current].append(line)
+        elif line.startswith("- "):
+            raise ValueError(f"{NEXT} has a change that isn't under a heading.")
+    for heading, lines in found.items():
+        if not any(line.startswith("- ") for line in lines):
+            raise ValueError(f"{NEXT} has no changes under {heading}.")
+    return found
+
+
+def render(found):
+    return "\n".join(f"## {heading}\n\n" + "\n".join(found[heading]) + "\n" for heading in HEADINGS if found.get(heading))
 
 
 def pending(text):
-    """The notes in next.md, checked, or nothing when there are no changes to tell people about."""
-    headings = re.findall(r"^## (.+)$", text, re.M)
-    unknown = [heading for heading in headings if heading not in HEADINGS]
-    if unknown:
-        raise ValueError(f"{NEXT} has the heading {unknown[0]!r}. Use {', '.join(HEADINGS)}.")
-    if not headings:
-        if re.search(r"^- ", text, re.M):
-            raise ValueError(f"{NEXT} has a change that isn't under a heading.")
-        return ""
-    if not re.search(r"^- \S", text, re.M):
-        raise ValueError(f"{NEXT} has a heading with no changes.")
-    return text[text.index("## "):].strip() + "\n"
+    return render(sections(text))
 
 
 def with_notes(text, summary):
@@ -36,12 +49,16 @@ def with_notes(text, summary):
 
 
 def archive(root, version, published):
-    """Give the published notes their version. Left alone if they've changed since, or say nothing."""
+    """Give the published notes their version, and keep in next.md only what has been added since."""
+    notes = sections(published)
     path = Path(root) / NEXT
-    if not path.is_file() or path.read_text(encoding="utf-8") != published or not pending(published):
+    if not notes or not path.is_file():
         return False
-    (path.parent / f"{version}.md").write_text(pending(published), encoding="utf-8", newline="\n")
-    path.write_text(BLANK, encoding="utf-8", newline="\n")
+    kept = {heading: [line for line in lines if line not in notes.get(heading, [])]
+            for heading, lines in sections(path.read_text(encoding="utf-8")).items()}
+    later = render(kept)
+    (path.parent / f"{version}.md").write_text(render(notes), encoding="utf-8", newline="\n")
+    path.write_text(BLANK + (f"\n{later}" if later else ""), encoding="utf-8", newline="\n")
     return True
 
 
