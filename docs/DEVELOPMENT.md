@@ -61,7 +61,16 @@ Dependabot checks pinned requirements and action SHAs weekly. Review subprocess 
 | **Release build** (`release-build.yml`) | by hand, for a catalogue-only correction |
 | **CodeQL** (`codeql.yml`) | pull requests, `main` and weekly |
 
-They share `catalogue.yml`, which tests and builds twice on each platform. Names match the other DashyNMS repositories, and `CI result` is the required check. Edge and nightly builds never reach the live feed, so no app uses them. Releases differ from the other repositories: they aren't started by pushing a tag, because a release's tag holds the data its build generates, and its version is LibreNMS's.
+They share `catalogue.yml`, which tests and builds twice on each platform. Names match the other DashyNMS repositories, and `CI result` is the one check to look for before merging. Edge and nightly builds never reach the live feed, so no app uses them. Releases differ from the other repositories: they aren't started by pushing a tag, because a release's tag holds the data its build generates, and its version is LibreNMS's.
+
+### Protection
+
+Two rulesets, with nobody exempt:
+
+- **`main`:** can't be force-pushed or deleted, and only takes linear history. Activation is a fast-forward, so it still works.
+- **`v*` tags:** once pushed, can't be moved or deleted, because apps fetch published data from them. `-edge.N` and `-nightly.N` tags are left out. If a run pushes its tag and then fails to make the release, make the release from the tag; don't replace it.
+
+`CI result` isn't enforced, unlike in the other repositories. Activation pushes straight to `main`, and GitHub doesn't let its Actions app bypass a ruleset, so requiring the check or a pull request would block every automatic LibreNMS release. Merge only when it has passed.
 
 ### Release notes
 
