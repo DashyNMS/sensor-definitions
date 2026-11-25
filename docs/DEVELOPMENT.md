@@ -68,7 +68,7 @@ They share `catalogue.yml`, which tests and builds twice on each platform. Names
 Two rulesets, with nobody exempt:
 
 - **`main`:** can't be force-pushed or deleted, and only takes linear history. Activation is a fast-forward, so it still works.
-- **`v*` tags:** once pushed, can't be moved or deleted, because apps fetch published data from them. `-edge.N` and `-nightly.N` tags are left out. If a run pushes its tag and then fails to make the release, make the release from the tag; don't replace it.
+- **`v*` tags:** once pushed, can't be moved or deleted, because apps fetch published data from them. `-edge.N` and `-nightly.N` tags are left out. If a run pushes its tag and then fails to make the release, make the release from the tag, with the title, notes and files `tools/publish.py` gives it (`data/manifest.json` and `data/notices.txt`); don't replace the tag.
 
 `CI result` isn't enforced, unlike in the other repositories. Activation pushes straight to `main`, and GitHub doesn't let its Actions app bypass a ruleset, so requiring the check or a pull request would block every automatic LibreNMS release. Merge only when it has passed.
 
