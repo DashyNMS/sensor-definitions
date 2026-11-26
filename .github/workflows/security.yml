@@ -31,6 +31,7 @@ jobs:
       - name: Check repository conventions
         env:
           GH_TOKEN: ${{ github.token }}
+          DEPENDENCY_MAINTENANCE_ISSUE: ${{ vars.DEPENDENCY_MAINTENANCE_ISSUE }}
         run: python scripts/repository_policy.py
       - name: Audit Python dependencies and secret candidates
         if: ${{ !cancelled() }}

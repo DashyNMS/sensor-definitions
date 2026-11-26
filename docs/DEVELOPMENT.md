@@ -96,7 +96,7 @@ Tags contain `data/manifest.json`, `data/os/<OS>.json.gz`, `data/coverage.json`,
 - `sources/`: pinned input/provenance; `feeds/`: active index; `docs/`: design and development.
 - `.upstream/`, `.deps/`, `artifacts/`: ignored local inputs, dependencies and output.
 
-Follow [CONTRIBUTING.md](../CONTRIBUTING.md) and [CLAUDE.md](../CLAUDE.md): one issue per PR, squash-merge, `type(scope): lower-case user-visible result`, `Closes #NN` first in the PR body, no issue numbers or attribution in titles. Original code/documentation is MIT; derived data retains its upstream notices under [NOTICES.md](../NOTICES.md).
+Follow [CONTRIBUTING.md](../CONTRIBUTING.md) and [CLAUDE.md](../CLAUDE.md): one issue per PR, squash-merge, `type(scope): lower-case user-visible result`, `Closes #NN` for completed work or `Refs #NN` for partial work first in the PR body, no issue numbers or attribution in titles. Original code/documentation is MIT; derived data retains its upstream notices under [NOTICES.md](../NOTICES.md).
 
 ## Commits, pull requests and issues
 

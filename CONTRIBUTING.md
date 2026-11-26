@@ -4,7 +4,7 @@ Match the DashyNMS repository conventions:
 
 - Work on a branch; use one issue per PR into `main` and squash-merge.
 - Commit and PR titles use `type(scope): lower-case user-visible result`, with no issue number or full stop. Suggested scopes: `definitions`, `import`, `schema`, `updates`, `docs`, `security`, `deps`.
-- PR descriptions begin with `Closes #NN`, describe the supported systems/change in behaviour, identify upstream revisions and summarise validation.
+- PR descriptions begin with `Closes #NN` for completed work or `Refs #NN` for partial work, describe the supported systems/change in behaviour, identify upstream revisions and summarise validation.
 - No AI attribution or co-author lines in commits, PRs or release notes.
 - Use British spelling and synthetic/documentation network identifiers.
 
