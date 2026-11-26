@@ -4,6 +4,9 @@
 version: 2
 updates:
   - package-ecosystem: github-actions
+    commit-message:
+      prefix: build
+      include: scope
     directory: /
     schedule:
       interval: weekly
@@ -13,6 +16,9 @@ updates:
         update-types: [minor, patch]
 
   - package-ecosystem: pip
+    commit-message:
+      prefix: build
+      include: scope
     directory: /
     schedule:
       interval: weekly

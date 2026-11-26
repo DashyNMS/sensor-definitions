@@ -3,7 +3,7 @@
 Match the DashyNMS repository conventions:
 
 - Work on a branch; use one issue per PR into `main` and squash-merge.
-- Commit and PR titles use `type(scope): lower-case user-visible result`, with no issue number or full stop. Suggested scopes: `definitions`, `import`, `schema`, `updates`, `docs`, `security`.
+- Commit and PR titles use `type(scope): lower-case user-visible result`, with no issue number or full stop. Suggested scopes: `definitions`, `import`, `schema`, `updates`, `docs`, `security`, `deps`.
 - PR descriptions begin with `Closes #NN`, describe the supported systems/change in behaviour, identify upstream revisions and summarise validation.
 - No AI attribution or co-author lines in commits, PRs or release notes.
 - Use British spelling and synthetic/documentation network identifiers.
@@ -17,3 +17,11 @@ A change people would see adds its line to `docs/releases/next.md` (see [Release
 Treat data releases as user-visible behaviour changes. Review label and severity corrections, publish immutable catalogue versions, and document changed coverage. A data repository must never ship instructions or scripts that client applications execute.
 
 The approved upstream-release automation is the exception to manual feed PRs: an official stable LibreNMS release is pinned, validated on all three platforms, published under the matching version, and activated automatically. Changes to the importer, workflows and catalogue-specific corrections still follow the normal issue and PR review process. Do not overwrite published versions or force-push feed updates.
+
+Follow [the code of conduct](CODE_OF_CONDUCT.md), use the issue forms and read
+[Repository standards](docs/REPOSITORY-STANDARDS.md) for shared policy and
+security checks. Discuss the scope in an issue before preparing a code change.
+
+Every PR must reference an existing issue describing the bug or intended change.
+Create or find that issue before opening the PR, including for documentation,
+dependency and CI changes. Use a non-closing reference for partial work.

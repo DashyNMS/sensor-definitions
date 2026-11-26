@@ -3,6 +3,7 @@ name: CI
 # Every pull request, and every edge build. "CI result" is the required check.
 on:
   pull_request:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
   workflow_call:
     inputs:
       name:
@@ -12,6 +13,7 @@ on:
 
 permissions:
   contents: read
+  issues: read
 
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.run_id }}
@@ -25,30 +27,23 @@ jobs:
       name: ${{ inputs.name || 'catalogue' }}
 
   security:
-    name: Security and release notes
+    name: Security
+    uses: ./.github/workflows/security.yml
+
+  notes:
+    name: Release notes
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: "3.12"
-      - name: Check the next release's notes
-        run: python tools/release_notes.py
-      - run: python -m pip install -r requirements-security.txt
-      - run: python tools/security_check.py
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: security-check-reports
-          path: artifacts/security
-          retention-days: 14
+      - name: Check pending notes
+        run: python3 tools/release_notes.py
 
   result:
     name: CI result
     if: always()
-    needs: [catalogue, security]
+    needs: [catalogue, security, notes]
     runs-on: ubuntu-latest
     steps:
       # Only success counts: a job no runner ever took is neither a failure nor

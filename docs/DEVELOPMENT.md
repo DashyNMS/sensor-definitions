@@ -97,3 +97,16 @@ Tags contain `data/manifest.json`, `data/os/<OS>.json.gz`, `data/coverage.json`,
 - `.upstream/`, `.deps/`, `artifacts/`: ignored local inputs, dependencies and output.
 
 Follow [CONTRIBUTING.md](../CONTRIBUTING.md) and [CLAUDE.md](../CLAUDE.md): one issue per PR, squash-merge, `type(scope): lower-case user-visible result`, `Closes #NN` first in the PR body, no issue numbers or attribution in titles. Original code/documentation is MIT; derived data retains its upstream notices under [NOTICES.md](../NOTICES.md).
+
+## Commits, pull requests and issues
+
+Dependabot uses `build(deps): ...` for every ecosystem. Its generated dependency names and grouped summaries may exceed the usual title length.
+
+Use `type(scope): what changes, as the user would notice it`, with a lower-case description, no final full stop and a complete subject under about 72 characters. Types are `feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `build`, `ci`, `chore` and `revert`. Scopes are `definitions`, `import`, `schema`, `updates`, `docs`, `security` and `deps`. Separate two scopes with a comma, or omit the scope when there is no single area. Add a new scope here in the same PR.
+
+Work on a branch into `main`, with one issue per PR, then squash-merge. Issue titles describe the result the fixing PR delivers; epics end with `(epic)`. Keep issue numbers out of titles. Begin a PR body with `Closes #NN` when resolving an issue, followed by behaviour, provenance and validation. Mark breaking changes with `!` and explain consumer migration. Commits, PRs and release notes carry no AI attribution or `Co-Authored-By` lines.
+
+## Repository standards
+
+See [Repository standards](REPOSITORY-STANDARDS.md) for security gates, shared
+policy ownership, contribution files and the procedure for updating copied helpers.

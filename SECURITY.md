@@ -23,3 +23,9 @@ CI runs CodeQL for Python and Actions, dependency vulnerability audits, Bandit w
 Clients receive data, never executable discovery code. Hashes detect corruption; they do not authenticate a compromised publisher. Custom repositories trust their publisher. Signature verification is not implemented.
 
 See [the developer guide](docs/DEVELOPMENT.md#security-checks) for local checks. Passing scans document the checks performed, not a guarantee that no vulnerabilities exist.
+
+## Repository checks
+
+[Repository standards](docs/REPOSITORY-STANDARDS.md) describes dependency audits,
+secret scanning, CodeQL analysis and publication gates. Passing a scan does not
+guarantee that no vulnerability exists. Report suspected vulnerabilities privately.

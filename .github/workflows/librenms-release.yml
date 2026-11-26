@@ -15,12 +15,17 @@ on:
 
 permissions:
   contents: read
+  issues: read
 
 concurrency:
   group: publish-catalogue
   cancel-in-progress: false
 
 jobs:
+  security:
+    name: Security
+    uses: ./.github/workflows/security.yml
+
   detect:
     name: Find the release
     runs-on: ubuntu-latest
@@ -55,14 +60,16 @@ jobs:
 
   publish:
     name: Publish and activate
-    needs: [detect, catalogue]
-    if: always() && needs.detect.result == 'success' && (needs.catalogue.result == 'success' || needs.detect.outputs.action == 'promote')
+    needs: [detect, catalogue, security]
+    if: always() && needs.security.result == 'success' && needs.detect.result == 'success' && (needs.catalogue.result == 'success' || needs.detect.outputs.action == 'promote')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # Needed for the immutable catalogue tag and fast-forward feed push.
+          persist-credentials: true
           fetch-depth: 0
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:

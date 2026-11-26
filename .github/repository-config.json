@@ -1,0 +1,9 @@
+{
+  "repository": "sensor-definitions",
+  "nuget_projects": [],
+  "retained_credentials": [
+    ".github/workflows/librenms-release.yml:publish",
+    ".github/workflows/release-build.yml:publish"
+  ],
+  "issue_policy_since": "2026-11-26T18:21:17Z"
+}
