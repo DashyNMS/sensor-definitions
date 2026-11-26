@@ -14,12 +14,17 @@ on:
 
 permissions:
   contents: read
+  issues: read
 
 concurrency:
   group: publish-catalogue
   cancel-in-progress: false
 
 jobs:
+  security:
+    name: Security
+    uses: ./.github/workflows/security.yml
+
   catalogue:
     name: Catalogue
     if: github.repository == 'DashyNMS/sensor-definitions' && github.ref == 'refs/heads/main'
@@ -30,13 +35,15 @@ jobs:
 
   publish:
     name: Publish
-    needs: catalogue
+    needs: [catalogue, security]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # Needed for the immutable catalogue tag and fast-forward feed push.
+          persist-credentials: true
           fetch-depth: 0
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:

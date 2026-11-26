@@ -3,3 +3,13 @@
 artifacts/
 __pycache__/
 *.pyc
+
+# Shared developer files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.venv/
+.env
+.env.*
+*.env

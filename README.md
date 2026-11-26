@@ -48,3 +48,11 @@ Use one issue per PR into `main`, then squash-merge. Titles follow `type(scope):
 
 <sub>DashyNMS is not affiliated with LibreNMS or the vendors represented in the catalogue.<br>
 Original generator code, schemas, tests and documentation use the MIT licence: see [LICENSE](LICENSE). LibreNMS-derived data retains its GPL-3.0-or-later terms and notices: see [NOTICES.md](NOTICES.md).</sub>
+
+
+## Contributing and accessibility
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for reports, proposed changes and validation,
+[ACCESSIBILITY.md](ACCESSIBILITY.md) for barriers and supported environments, and
+[the code of conduct](CODE_OF_CONDUCT.md) for community participation.
+Report vulnerabilities privately under [SECURITY.md](SECURITY.md).

@@ -46,7 +46,7 @@ def main():
     # Catalogue tags are on commits of their own, so only these channels' tags are in main's history.
     last = newest("v*-nightly.*") if args.channel == "nightly" else newest("v*-edge.*", "v*-nightly.*")
     changed = (args.channel == "edge" or os.environ.get("GITHUB_EVENT_NAME") != "schedule"
-               or last is None or git("rev-parse", f"{last}^{{commit}}") != commit)
+               or not git("tag", "--list", "v*-nightly.*", "--points-at", "HEAD"))
 
     repository = os.environ.get("GITHUB_REPOSITORY", "")
     link = f" [Changes since {last}](https://github.com/{repository}/compare/{last}...v{version})." if last else ""
