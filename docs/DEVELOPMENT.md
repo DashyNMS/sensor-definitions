@@ -100,7 +100,7 @@ Follow [CONTRIBUTING.md](../CONTRIBUTING.md) and [CLAUDE.md](../CLAUDE.md): one 
 
 ## Commits, pull requests and issues
 
-Dependabot uses `build(deps): ...` for every ecosystem. Its generated dependency names and grouped summaries may exceed the usual title length.
+Dependabot uses `build(deps): ...` for every ecosystem. Authenticated Dependabot may use generated capitalisation and exceed 72 characters.
 
 Use `type(scope): what changes, as the user would notice it`, with a lower-case description, no final full stop and a complete subject under about 72 characters. Types are `feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `build`, `ci`, `chore` and `revert`. Scopes are `definitions`, `import`, `schema`, `updates`, `docs`, `security` and `deps`. Separate two scopes with a comma, or omit the scope when there is no single area. Add a new scope here in the same PR.
 

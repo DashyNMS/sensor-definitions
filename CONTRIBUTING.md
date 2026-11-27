@@ -22,6 +22,11 @@ Follow [the code of conduct](CODE_OF_CONDUCT.md), use the issue forms and read
 [Repository standards](docs/REPOSITORY-STANDARDS.md) for shared policy and
 security checks. Discuss the scope in an issue before preparing a code change.
 
+Set an organisation issue type, relevant category or topic labels, and a
+milestone for each new issue. Follow the shared
+[issue categorisation guidance](docs/REPOSITORY-STANDARDS.md#issue-categorisation)
+when choosing a milestone or filing through the API.
+
 Every PR must reference an existing issue describing the bug or intended change.
 Create or find that issue before opening the PR, including for documentation,
 dependency and CI changes. Use a non-closing reference for partial work.

@@ -5,8 +5,7 @@ version: 2
 updates:
   - package-ecosystem: github-actions
     commit-message:
-      prefix: build
-      include: scope
+      prefix: build(deps)
     directory: /
     schedule:
       interval: weekly
@@ -17,8 +16,7 @@ updates:
 
   - package-ecosystem: pip
     commit-message:
-      prefix: build
-      include: scope
+      prefix: build(deps)
     directory: /
     schedule:
       interval: weekly
